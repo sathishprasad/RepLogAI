@@ -35,14 +35,15 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith("/auth");
   const isDashboard = request.nextUrl.pathname.startsWith("/dashboard");
   const isOnboarding = request.nextUrl.pathname.startsWith("/onboarding");
+  const isApi = request.nextUrl.pathname.startsWith("/api");
 
-  if (!user && (isDashboard || isOnboarding)) {
+  if (!user && (isDashboard || isOnboarding) && !isApi) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth";
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  if (user && isAuthPage && !request.nextUrl.pathname.startsWith("/auth/callback")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

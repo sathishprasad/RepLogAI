@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -13,8 +13,8 @@ export async function POST(request: Request) {
     const entry = await prisma.voiceEntry.findUnique({ where: { id: entryId } });
     if (!entry) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
 
-    const supabase = await createServerSupabaseClient();
-    const { data: audioData, error: downloadError } = await supabase.storage
+    const serviceClient = createServiceSupabaseClient();
+    const { data: audioData, error: downloadError } = await serviceClient.storage
       .from("voice-notes")
       .download(audioPath || entry.audioStoragePath!);
 

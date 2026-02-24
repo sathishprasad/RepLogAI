@@ -8,13 +8,13 @@ export default function SignUpPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const handleGoogleSignUp = async () => {
+  const handleGithubSignUp = async () => {
     if (!supabase) {
       router.push("/dashboard");
       return;
     }
     await supabase.auth.signInWithOAuth({
-      provider: "google",
+      provider: "github",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -41,7 +41,7 @@ export default function SignUpPage() {
 
   return (
     <SignUp1
-      onGoogleSignUp={handleGoogleSignUp}
+      onGithubSignUp={handleGithubSignUp}
       onEmailSignUp={handleEmailSignUp}
     />
   );

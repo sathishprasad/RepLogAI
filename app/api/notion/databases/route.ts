@@ -23,7 +23,7 @@ export async function GET() {
 
   try {
     const response = await notion.search({
-      filter: { property: "object", value: "database" as any },
+      filter: { property: "object", value: "database" },
       page_size: 50,
     });
 

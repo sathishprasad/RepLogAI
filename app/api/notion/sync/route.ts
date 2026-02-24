@@ -2,7 +2,6 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/encryption";
 import { NextResponse } from "next/server";
-import { Client } from "@notionhq/client";
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +21,6 @@ export async function POST(request: Request) {
     }
 
     const token = decrypt(dbUser.notionConnection.accessTokenEncrypted);
-    const notion = new Client({ auth: token });
     const dbConfig = dbUser.notionDatabaseConfig;
     const schema = dbConfig.schemaSnapshotJson as any[];
 
@@ -82,10 +80,102 @@ export async function POST(request: Request) {
       };
     }
 
-    const page = await notion.pages.create({
-      parent: { database_id: dbConfig.databaseId },
-      properties,
+    let rawDbId = dbConfig.databaseId;
+    const cleanDbId = rawDbId.replace(/-/g, "");
+
+    console.log("Syncing to Notion DB (raw):", rawDbId);
+    console.log("Syncing to Notion DB (clean):", cleanDbId);
+    console.log("Properties:", JSON.stringify(properties, null, 2));
+
+    const verifyRes = await fetch(`https://api.notion.com/v1/databases/${rawDbId}`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Notion-Version": "2022-06-28",
+      },
     });
+    const verifyData = await verifyRes.json();
+    console.log("DB verify (raw ID) status:", verifyRes.status, JSON.stringify(verifyData).slice(0, 500));
+
+    let workingDbId = rawDbId;
+    if (!verifyRes.ok) {
+      const verifyRes2 = await fetch(`https://api.notion.com/v1/databases/${cleanDbId}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Notion-Version": "2022-06-28",
+        },
+      });
+      const verifyData2 = await verifyRes2.json();
+      console.log("DB verify (clean ID) status:", verifyRes2.status, JSON.stringify(verifyData2).slice(0, 500));
+
+      if (verifyRes2.ok) {
+        workingDbId = cleanDbId;
+      } else {
+        const searchRes = await fetch("https://api.notion.com/v1/search", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+          },
+          body: JSON.stringify({
+            filter: { property: "object", value: "database" },
+            page_size: 100,
+          }),
+        });
+        const searchData = await searchRes.json();
+        console.log("Search for databases:", searchData.results?.map((r: any) => ({
+          id: r.id,
+          object: r.object,
+          title: r.title?.[0]?.plain_text,
+        })));
+
+        const match = searchData.results?.find((r: any) =>
+          r.id === rawDbId || r.id === cleanDbId || r.id.replace(/-/g, "") === cleanDbId
+        );
+        if (match) {
+          workingDbId = match.id;
+          console.log("Found matching DB via search:", workingDbId);
+        } else if (searchData.results?.length === 1) {
+          workingDbId = searchData.results[0].id;
+          console.log("Only 1 database found, using it:", workingDbId);
+          await prisma.notionDatabaseConfig.update({
+            where: { userId: dbUser.id },
+            data: { databaseId: workingDbId },
+          });
+          console.log("Updated stored databaseId to:", workingDbId);
+        } else {
+          console.error("Database not found via any method. Available DBs:", 
+            searchData.results?.map((r: any) => r.id));
+          return NextResponse.json({
+            success: false,
+            error: `Database ${rawDbId} not accessible. Found ${searchData.results?.length || 0} databases. The integration may not have access to this database — please re-share it.`,
+          }, { status: 400 });
+        }
+      }
+    }
+
+    const notionRes = await fetch("https://api.notion.com/v1/pages", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28",
+      },
+      body: JSON.stringify({
+        parent: { database_id: workingDbId },
+        properties,
+      }),
+    });
+
+    const pageData = await notionRes.json();
+
+    if (!notionRes.ok) {
+      console.error("Notion API error:", pageData);
+      return NextResponse.json({
+        success: false,
+        error: pageData.message || "Failed to create Notion page",
+      }, { status: 500 });
+    }
 
     if (entryId) {
       await prisma.voiceEntry.update({
@@ -93,16 +183,16 @@ export async function POST(request: Request) {
         data: {
           finalJson: fields,
           status: "SYNCED",
-          notionPageId: page.id,
-          notionPageUrl: (page as any).url,
+          notionPageId: pageData.id,
+          notionPageUrl: pageData.url,
         },
       });
     }
 
     return NextResponse.json({
       success: true,
-      pageId: page.id,
-      url: (page as any).url,
+      pageId: pageData.id,
+      url: pageData.url,
     });
   } catch (err: any) {
     console.error("Notion sync error:", err);

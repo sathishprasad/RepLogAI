@@ -11,32 +11,34 @@ import {
   ExternalLink,
   Loader2,
   FileText,
-  Target,
-  Calendar,
-  MessageSquare,
-  TrendingUp,
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface ExtractedField {
+interface DynamicField {
   key: string;
   label: string;
   value: string;
-  type: "text" | "select" | "date" | "rich_text";
+  type: string;
   confidence: number;
-  icon: React.ReactNode;
   options?: string[];
 }
 
-const defaultFields: ExtractedField[] = [
-  { key: "account", label: "Account / Company", value: "", type: "text", confidence: 0, icon: <Target className="w-4 h-4" /> },
-  { key: "contact", label: "Contact Person", value: "", type: "text", confidence: 0, icon: <FileText className="w-4 h-4" /> },
-  { key: "summary", label: "Meeting Summary", value: "", type: "rich_text", confidence: 0, icon: <MessageSquare className="w-4 h-4" /> },
-  { key: "stage", label: "Deal Stage", value: "", type: "select", confidence: 0, icon: <TrendingUp className="w-4 h-4" />, options: ["Prospecting", "Qualification", "Proposal", "Negotiation", "Closed Won", "Closed Lost"] },
-  { key: "next_steps", label: "Next Steps", value: "", type: "rich_text", confidence: 0, icon: <FileText className="w-4 h-4" /> },
-  { key: "follow_up_date", label: "Follow Up Date", value: "", type: "date", confidence: 0, icon: <Calendar className="w-4 h-4" /> },
-];
+function notionTypeToInputType(type: string): "text" | "select" | "date" | "rich_text" | "number" {
+  switch (type) {
+    case "title": return "text";
+    case "rich_text": return "rich_text";
+    case "select": return "select";
+    case "multi_select": return "select";
+    case "date": return "date";
+    case "number": return "number";
+    case "url": return "text";
+    case "email": return "text";
+    case "phone_number": return "text";
+    case "checkbox": return "text";
+    default: return "text";
+  }
+}
 
 export default function ReviewPage() {
   const searchParams = useSearchParams();
@@ -47,34 +49,45 @@ export default function ReviewPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; url?: string; error?: string } | null>(null);
   const [transcript, setTranscript] = useState("");
-  const [fields, setFields] = useState<ExtractedField[]>(defaultFields);
-  const [editingField, setEditingField] = useState<string | null>(null);
+  const [fields, setFields] = useState<DynamicField[]>([]);
 
   useEffect(() => {
     if (!entryId) return;
-    const fetchEntry = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(`/api/voice/extract?id=${entryId}`);
-        const data = await res.json();
-        if (data.transcript) setTranscript(data.transcript);
-        if (data.fields) {
-          setFields((prev) =>
-            prev.map((f) => {
-              const extracted = data.fields[f.key];
-              if (extracted) {
-                return { ...f, value: extracted.value || "", confidence: extracted.confidence || 0 };
-              }
-              return f;
-            })
-          );
-        }
+        const [entryRes, schemaRes] = await Promise.all([
+          fetch(`/api/voice/extract?id=${entryId}`),
+          fetch("/api/user/schema"),
+        ]);
+        const entryData = await entryRes.json();
+        const schemaData = await schemaRes.json();
+
+        if (entryData.transcript) setTranscript(entryData.transcript);
+
+        const schema = schemaData.schema || [];
+        const extractedFields = entryData.fields || {};
+
+        const dynamicFields: DynamicField[] = schema.map((prop: any) => {
+          const fieldKey = prop.name.toLowerCase().replace(/\s+/g, "_");
+          const extracted = extractedFields[fieldKey] || extractedFields[prop.name] || {};
+          return {
+            key: fieldKey,
+            label: prop.name,
+            value: extracted.value || "",
+            type: notionTypeToInputType(prop.type),
+            confidence: extracted.confidence || 0,
+            options: prop.options || undefined,
+          };
+        });
+
+        setFields(dynamicFields);
       } catch (err) {
-        console.error("Failed to fetch entry:", err);
+        console.error("Failed to fetch data:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchEntry();
+    fetchData();
   }, [entryId]);
 
   const handleFieldChange = (key: string, value: string) => {
@@ -116,12 +129,7 @@ export default function ReviewPage() {
             <h1 className="text-2xl font-bold text-text-primary">Row Created in Notion ✅</h1>
             <p className="text-muted-text">Your voice note has been synced successfully.</p>
             {syncResult.url && (
-              <a
-                href={syncResult.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-primary hover:text-primary-hover font-medium"
-              >
+              <a href={syncResult.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-primary hover:text-primary-hover font-medium">
                 Open in Notion <ExternalLink className="w-4 h-4" />
               </a>
             )}
@@ -160,7 +168,6 @@ export default function ReviewPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => router.back()} className="p-2 hover:bg-bg-light rounded-xl transition-colors">
@@ -181,9 +188,7 @@ export default function ReviewPage() {
         </button>
       </div>
 
-      {/* Two Column */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Transcript */}
         <div className="bg-white rounded-2xl border border-border p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-text-primary">Transcript</h2>
@@ -197,61 +202,69 @@ export default function ReviewPage() {
           />
         </div>
 
-        {/* Extracted Fields */}
         <div className="bg-white rounded-2xl border border-border p-6">
           <h2 className="text-lg font-bold text-text-primary mb-4">Extracted Fields</h2>
-          <div className="space-y-4">
-            {fields.map((field) => (
-              <div key={field.key} className="border border-border rounded-xl p-4 hover:border-primary/20 transition-colors">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-primary">{field.icon}</span>
-                    <label className="text-sm font-medium text-text-primary">{field.label}</label>
+          {fields.length === 0 ? (
+            <div className="text-center py-8 text-muted-text">
+              <FileText className="w-8 h-8 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">No schema configured</p>
+              <p className="text-sm mt-1">Complete onboarding to set up your Notion database mapping</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {fields.map((field) => (
+                <div key={field.key} className="border border-border rounded-xl p-4 hover:border-primary/20 transition-colors">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-primary"><FileText className="w-4 h-4" /></span>
+                      <label className="text-sm font-medium text-text-primary">{field.label}</label>
+                      <span className="text-xs text-muted-text bg-bg-light px-1.5 py-0.5 rounded">{field.type}</span>
+                    </div>
+                    {field.confidence > 0 && (
+                      <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", confidenceColor(field.confidence))}>
+                        {Math.round(field.confidence * 100)}%
+                      </span>
+                    )}
                   </div>
-                  {field.confidence > 0 && (
-                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", confidenceColor(field.confidence))}>
-                      {Math.round(field.confidence * 100)}%
-                    </span>
+                  {field.type === "select" && field.options ? (
+                    <select
+                      value={field.value}
+                      onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                      className="w-full bg-bg-light rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      <option value="">Select...</option>
+                      {field.options.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : field.type === "date" ? (
+                    <input
+                      type="date"
+                      value={field.value}
+                      onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                      className="w-full bg-bg-light rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  ) : field.type === "rich_text" ? (
+                    <textarea
+                      value={field.value}
+                      onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                      rows={3}
+                      className="w-full bg-bg-light rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                      placeholder={`Enter ${field.label.toLowerCase()}...`}
+                    />
+                  ) : (
+                    <input
+                      type={field.type === "number" ? "number" : "text"}
+                      value={field.value}
+                      onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                      className="w-full bg-bg-light rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      placeholder={`Enter ${field.label.toLowerCase()}...`}
+                    />
                   )}
                 </div>
-                {field.type === "select" && field.options ? (
-                  <select
-                    value={field.value}
-                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    className="w-full bg-bg-light rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  >
-                    <option value="">Select...</option>
-                    {field.options.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                ) : field.type === "date" ? (
-                  <input
-                    type="date"
-                    value={field.value}
-                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    className="w-full bg-bg-light rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                ) : field.type === "rich_text" ? (
-                  <textarea
-                    value={field.value}
-                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    rows={3}
-                    className="w-full bg-bg-light rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
-                    placeholder={`Enter ${field.label.toLowerCase()}...`}
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value={field.value}
-                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    className="w-full bg-bg-light rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder={`Enter ${field.label.toLowerCase()}...`}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

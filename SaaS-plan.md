@@ -87,32 +87,35 @@ Next.js App Router
 - [x] 12 API routes (voice/upload, voice/transcribe, voice/extract, notion/databases, notion/schema, notion/sync, stripe/checkout, stripe/portal, oauth/notion/start, oauth/notion/callback, webhooks/stripe, webhooks/whatsapp)
 - [x] Stunning Auth pages: Sign In, Sign Up, Forgot Password (glass-card dark theme)
 
-### Sprint 3: Onboarding & Notion OAuth ⬜ NEXT
-- [ ] Onboarding wizard (4 steps)
-- [ ] Notion OAuth start + callback (live)
-- [ ] Database picker (list user's Notion DBs)
-- [ ] Schema discovery + mapping UI
-- [ ] Other integrations shown as "Coming Soon · Beta"
+### Sprint 3: Onboarding & Notion OAuth ✅ COMPLETE
+- [x] Onboarding wizard (4 steps: Welcome → Connect → Database → Schema)
+- [x] Notion OAuth start + callback (live)
+- [x] Database picker (list user's Notion DBs)
+- [x] Schema discovery + mapping UI
+- [x] Other integrations shown as "Coming Soon · Beta"
 
-### Sprint 4: Voice → AI → Notion
-- [ ] Voice recorder (mic, timer, waveform, 90s limit) — UI done, needs live connection
-- [ ] Audio upload API → Supabase Storage (live)
-- [ ] Transcription API (OpenAI Whisper) — route exists, needs live wiring
-- [ ] Field extraction API (Claude/GPT + schema context) — route exists, needs live wiring
-- [ ] Review & edit page — UI done, needs live data
-- [ ] Notion sync API (write row) — route exists, needs live wiring
-- [ ] Sync result page
+### Sprint 4: Voice → AI → Notion ✅ COMPLETE
+- [x] Voice recorder (mic, timer, waveform, 90s limit) — live
+- [x] Audio upload API → Supabase Storage (service-role client, bypasses RLS)
+- [x] Transcription API (OpenAI Whisper) — live
+- [x] Field extraction API (Claude + dynamic schema context) — live
+- [x] Review & edit page — live data from extraction
+- [x] Notion sync API (raw fetch, auto-correcting database ID) — live
+- [x] Sync result with Notion page link
 
-### Sprint 5: History & Settings (Live Data)
-- [ ] History list page wired to Prisma/Supabase
-- [ ] Entry detail page with real data
+### Sprint 5: History & Settings (Live Data) — Partially Complete
+- [x] History list page wired to Prisma/Supabase
+- [x] Entry detail page with real data (`/api/history/[id]`)
+- [x] Dashboard overview with real stats (`/api/dashboard`)
 - [ ] Settings page wired (account, notion, mapping, billing)
+- [ ] Re-onboarding / change database flow
 
-### Sprint 6: Billing & Polish
+### Sprint 6: Billing & Polish ⬜ NEXT
 - [ ] Stripe checkout + portal (live)
-- [ ] Usage tracking + limits
+- [ ] Usage tracking + limits (UsageEvent model ready)
 - [ ] WhatsApp section marked "In Progress"
 - [ ] Loading states, error handling, mobile responsive
+- [ ] Reset onboarding feature for dev testing
 
 ---
 

@@ -26,11 +26,20 @@ export async function GET(request: Request) {
   const notion = new Client({ auth: token });
 
   try {
-    const database = await notion.databases.retrieve({ database_id: databaseId });
-    const properties = Object.entries((database as any).properties).map(([name, prop]: [string, any]) => ({
+    const searchResponse = await notion.search({
+      filter: { property: "object", value: "database" },
+      page_size: 100,
+    });
+
+    const database = searchResponse.results.find((r: any) => r.id === databaseId);
+    if (!database) {
+      return NextResponse.json({ error: "Database not found or not shared with integration" }, { status: 404 });
+    }
+
+    const properties = Object.entries((database as any).properties || {}).map(([name, prop]: [string, any]) => ({
       name,
       type: prop.type,
-      options: prop.type === "select" ? prop.select?.options?.map((o: any) => o.name) : 
+      options: prop.type === "select" ? prop.select?.options?.map((o: any) => o.name) :
                prop.type === "multi_select" ? prop.multi_select?.options?.map((o: any) => o.name) : undefined,
     }));
 

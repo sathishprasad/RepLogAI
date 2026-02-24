@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -11,36 +12,104 @@ import {
   Calendar,
   Clock,
   Database,
+  Loader2,
+  XCircle,
+  AlertCircle,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface EntryDetail {
+  id: string;
+  title: string;
+  status: string;
+  database: string;
+  meetingType: string;
+  duration: number;
+  createdAt: string;
+  transcript: string;
+  extractedFields: Record<string, any>;
+  notionPageUrl: string | null;
+}
+
+const statusConfig: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
+  SYNCED: { label: "Synced", color: "bg-green-50 text-green-700", icon: CheckCircle2 },
+  PENDING_APPROVAL: { label: "Pending Review", color: "bg-amber-50 text-amber-700", icon: Clock },
+  FAILED: { label: "Failed", color: "bg-red-50 text-red-700", icon: XCircle },
+  RECORDING: { label: "Recording", color: "bg-blue-50 text-blue-700", icon: FileAudio },
+  TRANSCRIBING: { label: "Transcribing", color: "bg-purple-50 text-purple-700", icon: FileAudio },
+  EXTRACTING: { label: "Extracting", color: "bg-indigo-50 text-indigo-700", icon: FileAudio },
+};
 
 export default function EntryDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id;
 
-  const entry = {
-    id,
-    title: "Call with Acme Corp — Q2 renewal",
-    status: "SYNCED",
-    database: "Sales Pipeline",
-    meetingType: "Call",
-    duration: 45,
-    createdAt: "2026-02-24T10:30:00Z",
-    transcript: "Had a great call with John from Acme Corp today. We discussed the Q2 renewal and they're looking to expand their current plan. The main concern is pricing for the additional seats. I offered a 15% discount for annual commitment. John will get back to me by Friday. Next step is to send a formal proposal by end of week.",
-    extractedFields: {
-      account: "Acme Corp",
-      contact: "John",
-      summary: "Q2 renewal discussion. Client wants to expand, concerned about pricing for additional seats.",
-      stage: "Negotiation",
-      next_steps: "Send formal proposal by end of week",
-      follow_up_date: "2026-02-28",
-    },
-    notionPageUrl: "https://notion.so/example-page",
+  const [entry, setEntry] = useState<EntryDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchEntry = async () => {
+      try {
+        const res = await fetch(`/api/history/${id}`);
+        if (res.status === 401) {
+          router.push("/auth");
+          return;
+        }
+        if (!res.ok) {
+          setError("Entry not found");
+          return;
+        }
+        const data = await res.json();
+        setEntry(data);
+      } catch (err) {
+        setError("Failed to load entry");
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (id) fetchEntry();
+  }, [id, router]);
+
+  const formatFieldValue = (value: any): string => {
+    if (typeof value === "object" && value !== null) {
+      return value.value || JSON.stringify(value);
+    }
+    return String(value);
   };
+
+  const formatFieldName = (key: string): string => {
+    return key.replace(/_/g, " ");
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !entry) {
+    return (
+      <div className="max-w-4xl mx-auto text-center py-24">
+        <AlertCircle className="w-12 h-12 text-muted-text mx-auto mb-4 opacity-40" />
+        <h2 className="text-lg font-bold text-text-primary mb-2">{error || "Entry not found"}</h2>
+        <button onClick={() => router.back()} className="text-primary text-sm font-medium hover:underline">
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  const config = statusConfig[entry.status] || statusConfig.SYNCED;
+  const StatusIcon = config.icon;
+
+  const fields = entry.extractedFields || {};
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => router.back()} className="p-2 hover:bg-bg-light rounded-xl transition-colors">
           <ArrowLeft className="w-5 h-5 text-muted-text" />
@@ -53,14 +122,11 @@ export default function EntryDetailPage() {
             <span className="inline-flex items-center gap-1"><Database className="w-3.5 h-3.5" /> {entry.database}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-green-50 text-green-700">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Synced
-          </span>
-        </div>
+        <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full", config.color)}>
+          <StatusIcon className="w-3.5 h-3.5" /> {config.label}
+        </span>
       </div>
 
-      {/* Notion Link */}
       {entry.notionPageUrl && (
         <a
           href={entry.notionPageUrl}
@@ -80,40 +146,46 @@ export default function EntryDetailPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Transcript */}
         <div className="bg-white rounded-2xl border border-border p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-text-primary">Transcript</h2>
-            <button className="p-1.5 hover:bg-bg-light rounded-lg transition-colors" title="Copy">
+            <button
+              onClick={() => navigator.clipboard.writeText(entry.transcript)}
+              className="p-1.5 hover:bg-bg-light rounded-lg transition-colors"
+              title="Copy transcript"
+            >
               <Copy className="w-4 h-4 text-muted-text" />
             </button>
           </div>
-          <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{entry.transcript}</p>
+          {entry.transcript ? (
+            <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{entry.transcript}</p>
+          ) : (
+            <p className="text-sm text-muted-text italic">No transcript available</p>
+          )}
         </div>
 
-        {/* Extracted Fields */}
         <div className="bg-white rounded-2xl border border-border p-6">
           <h2 className="text-lg font-bold text-text-primary mb-4">Extracted Fields</h2>
-          <div className="space-y-3">
-            {Object.entries(entry.extractedFields).map(([key, value]) => (
-              <div key={key} className="flex flex-col gap-1 p-3 bg-bg-light rounded-xl">
-                <span className="text-xs font-semibold text-muted-text uppercase tracking-wider">
-                  {key.replace(/_/g, " ")}
-                </span>
-                <span className="text-sm text-text-primary">{value}</span>
-              </div>
-            ))}
-          </div>
+          {Object.keys(fields).length > 0 ? (
+            <div className="space-y-3">
+              {Object.entries(fields).map(([key, value]) => (
+                <div key={key} className="flex flex-col gap-1 p-3 bg-bg-light rounded-xl">
+                  <span className="text-xs font-semibold text-muted-text uppercase tracking-wider">
+                    {formatFieldName(key)}
+                  </span>
+                  <span className="text-sm text-text-primary">{formatFieldValue(value)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-text italic">No extracted fields</p>
+          )}
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex gap-3">
-        <button className="px-5 py-2.5 rounded-full bg-primary hover:bg-primary-hover text-white font-semibold text-sm transition-all inline-flex items-center gap-2">
-          <RotateCcw className="w-4 h-4" /> Re-sync to Notion
-        </button>
         <button
-          onClick={() => navigator.clipboard.writeText(JSON.stringify(entry.extractedFields, null, 2))}
+          onClick={() => navigator.clipboard.writeText(JSON.stringify(fields, null, 2))}
           className="px-5 py-2.5 rounded-full bg-white border border-border hover:bg-bg-light text-text-primary font-semibold text-sm transition-all inline-flex items-center gap-2"
         >
           <Copy className="w-4 h-4" /> Copy JSON

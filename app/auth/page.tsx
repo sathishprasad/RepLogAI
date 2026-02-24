@@ -3,13 +3,16 @@
 import { SignIn1 } from "@/components/ui/modern-stunning-sign-in";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function AuthPage() {
   const router = useRouter();
   const supabase = createClient();
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>("");
 
   useEffect(() => {
+    setDebugInfo(`Supabase client: ${supabase ? "initialized" : "NULL (bypass mode)"}`);
     if (!supabase) return;
     const {
       data: { subscription },
@@ -21,22 +24,35 @@ export default function AuthPage() {
     return () => subscription.unsubscribe();
   }, [router, supabase]);
 
-  const handleGoogleSignIn = async () => {
+  const handleGithubSignIn = async () => {
+    setAuthError(null);
     if (!supabase) {
-      router.push("/dashboard");
+      setAuthError("Supabase client is NULL — env vars may not be loaded. Check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
       return;
     }
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) {
+        setAuthError(`OAuth error: ${error.message}`);
+        console.error("GitHub OAuth error:", error);
+      } else {
+        console.log("OAuth response:", data);
+      }
+    } catch (err: any) {
+      setAuthError(`Exception: ${err.message}`);
+      console.error("GitHub OAuth exception:", err);
+    }
   };
 
   const handleEmailSignIn = async (email: string, password: string) => {
+    setAuthError(null);
     if (!supabase) {
-      router.push("/dashboard");
+      setAuthError("Supabase client is NULL");
       return;
     }
     const { error } = await supabase.auth.signInWithPassword({
@@ -44,14 +60,24 @@ export default function AuthPage() {
       password,
     });
     if (error) {
+      setAuthError(`Email auth error: ${error.message}`);
       console.error("Auth error:", error.message);
     }
   };
 
+  const handleDevBypass = () => {
+    router.push("/dashboard");
+  };
+
   return (
-    <SignIn1
-      onGoogleSignIn={handleGoogleSignIn}
-      onEmailSignIn={handleEmailSignIn}
-    />
+    <div>
+      <SignIn1
+        onGithubSignIn={handleGithubSignIn}
+        onEmailSignIn={handleEmailSignIn}
+        authError={authError}
+        debugInfo={debugInfo}
+        onDevBypass={handleDevBypass}
+      />
+    </div>
   );
 }

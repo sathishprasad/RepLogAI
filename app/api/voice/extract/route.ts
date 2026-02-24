@@ -17,41 +17,44 @@ export async function POST(request: Request) {
     if (!entry) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
     if (!entry.transcriptText) return NextResponse.json({ error: "No transcript" }, { status: 400 });
 
-    const schema = entry.user.notionDatabaseConfig?.schemaSnapshotJson as any;
-    const mapping = entry.user.notionDatabaseConfig?.mappingJson as any;
+    const schema = entry.user.notionDatabaseConfig?.schemaSnapshotJson as any[];
 
-    const schemaContext = schema
-      ? JSON.stringify(schema, null, 2)
-      : `Default CRM fields: Account (title), Contact (text), Summary (text), Stage (select: Prospecting, Qualification, Proposal, Negotiation, Closed Won, Closed Lost), Next Steps (text), Follow Up Date (date)`;
+    const fieldDescriptions = (schema || []).map((prop: any) => {
+      const key = prop.name.toLowerCase().replace(/\s+/g, "_");
+      let desc = `"${key}": type=${prop.type}`;
+      if (prop.options?.length) desc += ` (options: ${prop.options.join(", ")})`;
+      return desc;
+    });
 
-    const prompt = `You are an AI that extracts structured CRM data from sales call transcripts.
+    const fieldKeys = (schema || []).map((prop: any) => {
+      const key = prop.name.toLowerCase().replace(/\s+/g, "_");
+      return `  "${key}": {"value": "extracted value or empty string", "confidence": 0.0}`;
+    });
 
-Given this transcript from a sales meeting:
+    const prompt = `You are an AI that extracts structured data from voice transcripts into CRM/database fields.
+
+Given this transcript:
 """
 ${entry.transcriptText}
 """
 
-And this database schema:
-${schemaContext}
+Database fields to extract:
+${fieldDescriptions.join("\n")}
 
 Extract structured fields. For each field, provide a value and a confidence score (0.0-1.0).
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "account": {"value": "string", "confidence": 0.0},
-  "contact": {"value": "string", "confidence": 0.0},
-  "summary": {"value": "string", "confidence": 0.0},
-  "stage": {"value": "string from allowed options", "confidence": 0.0},
-  "next_steps": {"value": "string", "confidence": 0.0},
-  "follow_up_date": {"value": "YYYY-MM-DD or empty", "confidence": 0.0}
+${fieldKeys.join(",\n")}
 }
 
 Rules:
-- If a field is not mentioned, set value to "" and confidence to 0
-- Stage must match one of the allowed options exactly
-- Dates must be in ISO format (YYYY-MM-DD)
-- Summary should be concise (1-2 sentences)
-- Confidence reflects how clearly the information was stated`;
+- If a field is not mentioned in the transcript, set value to "" and confidence to 0
+- For select fields, the value must match one of the allowed options exactly
+- For date fields, use ISO format (YYYY-MM-DD)
+- For title/text fields, extract the most relevant information
+- Confidence reflects how clearly the information was stated in the transcript
+- Be concise for text fields (1-2 sentences max)`;
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",

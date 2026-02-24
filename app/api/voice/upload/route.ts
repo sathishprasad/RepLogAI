@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -27,7 +28,8 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
     const fileName = `voice/${dbUser.id}/${Date.now()}.webm`;
 
-    const { data: storageData, error: storageError } = await supabase.storage
+    const serviceClient = createServiceSupabaseClient();
+    const { data: storageData, error: storageError } = await serviceClient.storage
       .from("voice-notes")
       .upload(fileName, buffer, { contentType: "audio/webm" });
 
