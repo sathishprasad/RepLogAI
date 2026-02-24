@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum VoiceEntryStatus {
+  RECORDING
+  TRANSCRIBING
+  EXTRACTING
+  PENDING_APPROVAL
+  APPROVED
+  SYNCED
+  FAILED
+  CANCELED
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum UsageType {
+  ENTRIES_CREATED
+  AUDIO_SECONDS
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  avatarUrl String?
+  onboardingComplete Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notionConnection     NotionConnection?
+  notionDatabaseConfig NotionDatabaseConfig?
+  allowedPhoneNumbers  AllowedSenderPhoneNumber[]
+  voiceEntries         VoiceEntry[]
+  stripeCustomer       StripeCustomer?
+  usageEvents          UsageEvent[]
+}
+
+model NotionConnection {
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  workspaceId          String?
+  workspaceName        String?
+  workspaceIcon        String?
+  accessTokenEncrypted String
+  botId                String?
+  connectedAt          DateTime  @default(now())
+  revokedAt            DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotionDatabaseConfig {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  databaseId         String
+  databaseName       String
+  schemaSnapshotJson Json
+  mappingJson        Json
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AllowedSenderPhoneNumber {
+  id        String   @id @default(uuid())
+  userId    String
+  phoneE164 String
+  label     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, phoneE164])
+}
+
+model VoiceEntry {
+  id                String           @id @default(uuid())
+  userId            String
+  fromPhoneE164     String?
+  databaseId        String
+  whatsappMessageId String?          @unique
+  entryCode         String?
+  audioStoragePath  String?
+  audioDurationSecs Float?
+  transcriptText    String?
+  extractedJson     Json?
+  finalJson         Json?
+  warningsJson      Json?
+  status            VoiceEntryStatus @default(RECORDING)
+  notionPageId      String?
+  notionPageUrl     String?
+  meetingType       String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StripeCustomer {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  stripeCustomerId     String   @unique
+  stripeSubscriptionId String?
+  plan                 Plan     @default(FREE)
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UsageEvent {
+  id        String    @id @default(uuid())
+  userId    String
+  type      UsageType
+  quantity  Float
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt])
+}
