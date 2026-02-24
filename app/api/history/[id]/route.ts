@@ -35,7 +35,7 @@ export async function GET(
     meetingType: entry.meetingType || "Call",
     duration: Math.round(entry.audioDurationSecs || 0),
     createdAt: entry.createdAt.toISOString(),
-    transcript: entry.transcript || "",
+    transcript: entry.transcriptText || "",
     extractedFields: finalFields || extracted || {},
     notionPageUrl: entry.notionPageUrl || null,
     notionPageId: entry.notionPageId || null,

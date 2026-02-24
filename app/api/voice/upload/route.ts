@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { checkUsageLimits, trackUsage } from "@/lib/usage";
 
 export async function POST(request: Request) {
   try {
@@ -19,6 +20,11 @@ export async function POST(request: Request) {
     const dbUser = await prisma.user.findUnique({ where: { email: user.email! } });
     if (!dbUser) {
       return NextResponse.json({ error: "User not found in database" }, { status: 404 });
+    }
+
+    const usageCheck = await checkUsageLimits(dbUser.id);
+    if (!usageCheck.allowed) {
+      return NextResponse.json({ error: usageCheck.reason, code: "LIMIT_REACHED" }, { status: 429 });
     }
 
     const dbConfig = await prisma.notionDatabaseConfig.findUnique({ where: { userId: dbUser.id } });
@@ -47,6 +53,9 @@ export async function POST(request: Request) {
         status: "TRANSCRIBING",
       },
     });
+
+    await trackUsage(dbUser.id, "ENTRIES_CREATED", 1);
+    if (duration) await trackUsage(dbUser.id, "AUDIO_SECONDS", duration);
 
     const transcribeRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/voice/transcribe`, {
       method: "POST",

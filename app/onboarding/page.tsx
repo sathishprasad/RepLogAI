@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mic, Check, ChevronRight, Database, Shield, Loader2, Search, BarChart3, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,7 @@ interface SchemaProperty {
   fillable: boolean;
 }
 
-export default function OnboardingPage() {
+function OnboardingPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlStep = searchParams.get("step");
@@ -335,5 +335,13 @@ export default function OnboardingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-24 min-h-screen bg-[#0B0F17]"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>}>
+      <OnboardingPageInner />
+    </Suspense>
   );
 }

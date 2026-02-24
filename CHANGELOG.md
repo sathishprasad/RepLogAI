@@ -1,5 +1,29 @@
 # Changelog — RepLog AI (Mangal)
 
+## 2026-02-24 — Session 4: Sprint 5 & 6 Complete (Settings, Billing, Polish)
+
+### Added
+- **`/api/settings` (GET + PATCH)** — Fetches real user account, Notion connection, database mapping, billing/usage data; PATCH updates user name
+- **`/api/settings/notion/disconnect`** — Disconnects Notion, removes DB config, resets onboarding
+- **`/api/settings/danger/delete-transcripts`** — Deletes all voice entries for user
+- **`/api/settings/danger/delete-account`** — Full account deletion (all related data + sign out)
+- **`/api/stripe/portal`** — Creates Stripe Customer Portal session for subscription management
+- **`lib/usage.ts`** — Usage tracking utility (trackUsage, checkUsageLimits, getMaxAudioSecs)
+- Plan limit enforcement on voice upload — returns 429 when monthly entry limit reached
+
+### Changed
+- **Settings page** — Fully wired to real API data: account info with avatar, Notion status with workspace name, real database columns, live usage meter, Stripe checkout/portal integration, danger zone with confirmation dialogs and loading states
+- **Integrations page** — Shows real Notion connection status from API (connected/not connected with workspace name)
+- **Voice upload route** — Tracks usage events (ENTRIES_CREATED, AUDIO_SECONDS) and enforces plan limits
+- **Stripe webhook** — Now fetches subscription details to store `currentPeriodEnd` on checkout
+- **Suspense boundaries** — Added to review, settings, and onboarding pages (fixes `useSearchParams` build errors)
+- **Type fixes** — Added `as any` casts for Notion SDK filter type, Stripe subscription type, Supabase auth callbacks
+
+### Build
+- ✅ `next build` passes with zero type errors
+
+---
+
 ## 2026-02-24 — Session 3: End-to-End Pipeline Complete 🎉
 
 ### Milestone

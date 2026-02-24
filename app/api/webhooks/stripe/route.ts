@@ -24,11 +24,13 @@ export async function POST(request: Request) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       if (session.customer && session.subscription) {
+        const sub = await stripe.subscriptions.retrieve(session.subscription as string);
         await prisma.stripeCustomer.updateMany({
           where: { stripeCustomerId: session.customer as string },
           data: {
             stripeSubscriptionId: session.subscription as string,
             plan: "PRO",
+            currentPeriodEnd: new Date((sub as any).current_period_end * 1000),
           },
         });
       }

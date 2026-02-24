@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Loader2 as SuspenseLoader } from "lucide-react";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -40,7 +41,7 @@ function notionTypeToInputType(type: string): "text" | "select" | "date" | "rich
   }
 }
 
-export default function ReviewPage() {
+function ReviewPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const entryId = searchParams.get("id");
@@ -268,5 +269,13 @@ export default function ReviewPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ReviewPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-24"><SuspenseLoader className="w-8 h-8 text-primary animate-spin" /></div>}>
+      <ReviewPageInner />
+    </Suspense>
   );
 }

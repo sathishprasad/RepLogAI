@@ -16,7 +16,7 @@ export default function AuthPage() {
     if (!supabase) return;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event: any) => {
       if (event === "SIGNED_IN") {
         router.push("/dashboard");
       }

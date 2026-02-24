@@ -103,19 +103,26 @@ Next.js App Router
 - [x] Notion sync API (raw fetch, auto-correcting database ID) — live
 - [x] Sync result with Notion page link
 
-### Sprint 5: History & Settings (Live Data) — Partially Complete
+### Sprint 5: History & Settings (Live Data) ✅ COMPLETE
 - [x] History list page wired to Prisma/Supabase
 - [x] Entry detail page with real data (`/api/history/[id]`)
 - [x] Dashboard overview with real stats (`/api/dashboard`)
-- [ ] Settings page wired (account, notion, mapping, billing)
-- [ ] Re-onboarding / change database flow
+- [x] Settings page wired — account (name edit), Notion (connect/disconnect/reconnect), database mapping (real columns), billing (usage meter + Stripe), danger zone (delete transcripts/account/reset onboarding)
+- [x] Re-onboarding / change database flow (Settings → Change Database or Reset Onboarding)
 
-### Sprint 6: Billing & Polish ⬜ NEXT
-- [ ] Stripe checkout + portal (live)
-- [ ] Usage tracking + limits (UsageEvent model ready)
-- [ ] WhatsApp section marked "In Progress"
-- [ ] Loading states, error handling, mobile responsive
-- [ ] Reset onboarding feature for dev testing
+### Sprint 6: Billing & Polish ✅ COMPLETE
+- [x] Stripe checkout route (`/api/stripe/checkout`) — creates customer + checkout session
+- [x] Stripe customer portal route (`/api/stripe/portal`) — manage subscription
+- [x] Stripe webhook handler — handles checkout.completed, subscription.updated, subscription.deleted
+- [x] Usage tracking (`lib/usage.ts`) — tracks entries + audio seconds per month
+- [x] Plan limit enforcement — blocks new uploads when monthly limit reached (429 response)
+- [x] WhatsApp section marked "In Progress" on integrations page
+- [x] Loading states on all pages (Loader2 spinners)
+- [x] Error handling with toast notifications on settings page
+- [x] Integrations page shows real Notion connection status
+- [x] Suspense boundaries for `useSearchParams` pages (review, settings, onboarding)
+- [x] Reset onboarding feature in Settings → Danger Zone
+- [x] Production build passes (`next build` ✅)
 
 ---
 
