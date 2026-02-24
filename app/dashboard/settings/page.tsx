@@ -14,13 +14,28 @@ import {
   Loader2,
   XCircle,
   Zap,
+  Bot,
+  Users,
+  Copy,
+  Check,
+  Plus,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface Employee {
+  id: string;
+  employeeCode: string;
+  name: string;
+  telegramChatId: string | null;
+  isActive: boolean;
+}
 
 interface SettingsData {
   account: { name: string; email: string; avatarUrl: string | null; createdAt: string };
   notion: { connected: boolean; workspaceName?: string; workspaceIcon?: string; connectedAt?: string };
   database: { configured: boolean; databaseId?: string; databaseName?: string; columns?: { name: string; type: string; fillable: boolean }[] };
+  company: { companyName: string; companyCode: string };
   billing: { plan: string; entriesUsed: number; limits: { maxEntries: number; maxAudioSecs: number }; currentPeriodEnd: string | null; hasSubscription: boolean };
 }
 
@@ -34,8 +49,16 @@ function SettingsPageInner() {
   const [name, setName] = useState("");
   const [actionLoading, setActionLoading] = useState("");
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [newEmpCode, setNewEmpCode] = useState("");
+  const [newEmpName, setNewEmpName] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const billingStatus = searchParams.get("billing");
+
+  useEffect(() => {
+    if (activeSection === "telegram" || activeSection === "employees") fetchEmployees();
+  }, [activeSection]);
 
   useEffect(() => {
     if (billingStatus === "success") {
@@ -130,8 +153,44 @@ function SettingsPageInner() {
 
   const handleChangeDatabase = () => { router.push("/onboarding?step=database"); };
 
+  const fetchEmployees = async () => {
+    try {
+      const res = await fetch("/api/employees");
+      const d = await res.json();
+      setEmployees(d.employees || []);
+    } catch {}
+  };
+
+  const handleAddEmployee = async () => {
+    if (!newEmpCode || !newEmpName) return;
+    try {
+      await fetch("/api/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeCode: newEmpCode, name: newEmpName }),
+      });
+      setNewEmpCode("");
+      setNewEmpName("");
+      fetchEmployees();
+      showToast("success", "Employee added");
+    } catch { showToast("error", "Failed to add employee"); }
+  };
+
+  const handleDeleteEmployee = async (id: string) => {
+    try {
+      await fetch("/api/employees", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      fetchEmployees();
+    } catch { showToast("error", "Failed to remove employee"); }
+  };
+
   const sections = [
     { id: "account", label: "Account", icon: User },
+    { id: "telegram", label: "Telegram Bot", icon: Bot },
+    { id: "employees", label: "Employees", icon: Users },
     { id: "notion", label: "Notion Connection", icon: Shield },
     { id: "mapping", label: "Database & Mapping", icon: Database },
     { id: "billing", label: "Billing", icon: CreditCard },
@@ -226,6 +285,125 @@ function SettingsPageInner() {
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save Changes
               </button>
+            </div>
+          )}
+
+          {activeSection === "telegram" && (
+            <div className="bg-white rounded-2xl border border-border p-6 space-y-6">
+              <h2 className="text-lg font-bold text-text-primary">Telegram Bot</h2>
+              <div className="flex items-center gap-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                <Bot className="w-6 h-6 text-green-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-800">@RepLogAIBot</p>
+                  <p className="text-xs text-green-600">Bot is active and receiving voice notes</p>
+                </div>
+              </div>
+
+              {d.company?.companyCode && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-text-primary mb-1.5">Company Code</label>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 px-4 py-2.5 bg-bg-light rounded-xl text-sm font-mono border border-border">
+                        {d.company.companyCode}
+                      </code>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-primary mb-1.5">Shareable Deep Link</label>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 px-4 py-2.5 bg-bg-light rounded-xl text-sm font-mono border border-border text-primary break-all">
+                        t.me/RepLogAIBot?start={d.company.companyCode}
+                      </code>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(`https://t.me/RepLogAIBot?start=${d.company.companyCode}`);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className="p-2.5 rounded-xl bg-bg-light border border-border hover:bg-primary/5 transition-all"
+                      >
+                        {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-muted-text" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-muted-text">
+                    <span>Company: <strong className="text-text-primary">{d.company.companyName}</strong></span>
+                    <span>·</span>
+                    <span>{employees.filter(e => e.telegramChatId).length} / {employees.length} reps linked</span>
+                  </div>
+                </div>
+              )}
+
+              {!d.company?.companyCode && (
+                <div className="text-center py-6">
+                  <p className="text-sm text-muted-text mb-3">No company code set up yet.</p>
+                  <button onClick={() => router.push("/onboarding?step=company")} className="px-5 py-2.5 rounded-full bg-primary text-white font-semibold text-sm">
+                    Set Up Company
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSection === "employees" && (
+            <div className="bg-white rounded-2xl border border-border p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-text-primary">Employee Roster</h2>
+                <span className="text-xs text-muted-text">{employees.length} employees</span>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Employee ID"
+                  value={newEmpCode}
+                  onChange={(e) => setNewEmpCode(e.target.value)}
+                  className="flex-1 bg-bg-light rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={newEmpName}
+                  onChange={(e) => setNewEmpName(e.target.value)}
+                  className="flex-1 bg-bg-light rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <button
+                  onClick={handleAddEmployee}
+                  disabled={!newEmpCode || !newEmpName}
+                  className="px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-all disabled:opacity-50 inline-flex items-center gap-1"
+                >
+                  <Plus className="w-4 h-4" /> Add
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {employees.length === 0 ? (
+                  <p className="text-center py-8 text-sm text-muted-text">No employees yet. Add them above or upload via onboarding.</p>
+                ) : (
+                  employees.map((emp) => (
+                    <div key={emp.id} className="flex items-center justify-between p-3 bg-bg-light rounded-xl border border-border">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-text-primary">{emp.name}</p>
+                          <p className="text-xs text-muted-text font-mono">{emp.employeeCode}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={cn(
+                          "text-xs font-medium px-2 py-0.5 rounded-full",
+                          emp.telegramChatId ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
+                        )}>
+                          {emp.telegramChatId ? "Linked" : "Pending"}
+                        </span>
+                        <button onClick={() => handleDeleteEmployee(emp.id)} className="p-1 hover:bg-red-50 rounded-lg transition-all">
+                          <X className="w-4 h-4 text-red-400 hover:text-red-600" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 

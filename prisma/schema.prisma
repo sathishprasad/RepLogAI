@@ -13,6 +13,7 @@ enum VoiceEntryStatus {
   TRANSCRIBING
   EXTRACTING
   PENDING_APPROVAL
+  AWAITING_CLARIFICATION
   APPROVED
   SYNCED
   FAILED
@@ -29,18 +30,25 @@ enum UsageType {
   AUDIO_SECONDS
 }
 
+enum EntrySource {
+  WEB
+  TELEGRAM
+}
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  avatarUrl String?
-  onboardingComplete Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  name               String?
+  avatarUrl          String?
+  companyName        String?
+  companyCode        String?  @unique
+  onboardingComplete Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   notionConnection     NotionConnection?
   notionDatabaseConfig NotionDatabaseConfig?
-  allowedPhoneNumbers  AllowedSenderPhoneNumber[]
+  employees            Employee[]
   voiceEntries         VoiceEntry[]
   stripeCustomer       StripeCustomer?
   usageEvents          UsageEvent[]
@@ -72,25 +80,30 @@ model NotionDatabaseConfig {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model AllowedSenderPhoneNumber {
-  id        String   @id @default(uuid())
-  userId    String
-  phoneE164 String
-  label     String?
-  createdAt DateTime @default(now())
+model Employee {
+  id             String   @id @default(uuid())
+  adminId        String
+  employeeCode   String
+  name           String
+  telegramChatId String?  @unique
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admin        User         @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  voiceEntries VoiceEntry[]
 
-  @@unique([userId, phoneE164])
+  @@unique([adminId, employeeCode])
 }
 
 model VoiceEntry {
   id                String           @id @default(uuid())
   userId            String
-  fromPhoneE164     String?
+  employeeId        String?
+  source            EntrySource      @default(TELEGRAM)
   databaseId        String
-  whatsappMessageId String?          @unique
-  entryCode         String?
+  telegramMessageId String?          @unique
+  telegramChatId    String?
   audioStoragePath  String?
   audioDurationSecs Float?
   transcriptText    String?
@@ -104,7 +117,8 @@ model VoiceEntry {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employee Employee? @relation(fields: [employeeId], references: [id])
 }
 
 model StripeCustomer {

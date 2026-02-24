@@ -17,6 +17,7 @@ export async function GET() {
     where: { userId: dbUser.id },
     orderBy: { createdAt: "desc" },
     take: 50,
+    include: { employee: true },
   });
 
   const formatted = entries.map((e) => {
@@ -30,6 +31,8 @@ export async function GET() {
       meetingType: e.meetingType || "Call",
       duration: Math.round(e.audioDurationSecs || 0),
       createdAt: e.createdAt.toISOString(),
+      source: e.source,
+      repName: e.employee?.name || null,
     };
   });
 

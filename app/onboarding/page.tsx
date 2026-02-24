@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mic, Check, ChevronRight, Database, Shield, Loader2, Search, BarChart3, MessageSquare } from "lucide-react";
+import { Mic, Check, ChevronRight, Database, Shield, Loader2, Search, BarChart3, MessageSquare, Upload, Copy, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const steps = [
@@ -10,6 +10,7 @@ const steps = [
   { id: "connect", label: "Connect" },
   { id: "database", label: "Database" },
   { id: "schema", label: "Schema" },
+  { id: "company", label: "Company" },
 ];
 
 interface NotionDB {
@@ -37,6 +38,12 @@ function OnboardingPageInner() {
   const [schema, setSchema] = useState<SchemaProperty[]>([]);
   const [loading, setLoading] = useState(false);
   const [dbSearch, setDbSearch] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [companyCode, setCompanyCode] = useState("");
+  const [rosterText, setRosterText] = useState("");
+  const [rosterFile, setRosterFile] = useState<File | null>(null);
+  const [employeeCount, setEmployeeCount] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (urlStep) setCurrentStep(urlStep);
@@ -98,9 +105,66 @@ function OnboardingPageInner() {
           ),
         }),
       });
-      router.push("/dashboard");
+      setCurrentStep("company");
     } catch (err) {
       console.error("Failed to save mapping:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateCode = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const prefix = companyName.slice(0, 4).toUpperCase().replace(/[^A-Z]/g, "X");
+    const suffix = Array.from({ length: 3 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    return `${prefix}${suffix}`;
+  };
+
+  const parseRoster = (text: string) => {
+    const lines = text.trim().split("\n").filter(Boolean);
+    const employees: { employeeCode: string; name: string }[] = [];
+    for (const line of lines) {
+      const parts = line.split(/[,\t]+/).map((s) => s.trim());
+      if (parts.length >= 2) {
+        employees.push({ employeeCode: parts[0], name: parts[1] });
+      }
+    }
+    return employees;
+  };
+
+  const handleCompanySetup = async () => {
+    setLoading(true);
+    try {
+      const code = companyCode || generateCode();
+      setCompanyCode(code);
+
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyName, companyCode: code }),
+      });
+
+      let rosterData = rosterText;
+      if (rosterFile) {
+        rosterData = await rosterFile.text();
+      }
+
+      if (rosterData.trim()) {
+        const employees = parseRoster(rosterData);
+        if (employees.length > 0) {
+          const res = await fetch("/api/employees", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bulk: true, employees }),
+          });
+          const data = await res.json();
+          setEmployeeCount(data.count || employees.length);
+        }
+      }
+
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Company setup error:", err);
     } finally {
       setLoading(false);
     }
@@ -328,7 +392,119 @@ function OnboardingPageInner() {
                 className="w-full py-3.5 rounded-full bg-primary hover:bg-primary/90 text-white font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-                Save & Go to Dashboard
+                Save & Continue
+              </button>
+            </div>
+          )}
+
+          {/* Step: Company Setup */}
+          {currentStep === "company" && (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-3xl font-bold mb-3">Company Setup</h1>
+                <p className="text-gray-400">Set up your company so reps can send voice notes via Telegram.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1.5">Company Name</label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => {
+                      setCompanyName(e.target.value);
+                      if (!companyCode && e.target.value.length >= 3) {
+                        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+                        const prefix = e.target.value.slice(0, 4).toUpperCase().replace(/[^A-Z]/g, "X");
+                        const suffix = Array.from({ length: 3 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+                        setCompanyCode(`${prefix}${suffix}`);
+                      }
+                    }}
+                    placeholder="e.g. Acme Corp"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1.5">Company Code</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={companyCode}
+                      onChange={(e) => setCompanyCode(e.target.value.toUpperCase())}
+                      placeholder="Auto-generated"
+                      className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    <button
+                      onClick={() => setCompanyCode(generateCode())}
+                      className="px-4 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-sm transition-all"
+                    >
+                      Regenerate
+                    </button>
+                  </div>
+                </div>
+
+                {companyCode && (
+                  <div className="p-4 bg-primary/10 rounded-xl border border-primary/20">
+                    <p className="text-xs text-gray-400 mb-2">Share this link with your reps:</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-sm font-mono text-primary break-all">
+                        t.me/{process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "RepLogAIBot"}?start={companyCode}
+                      </code>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            `https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "RepLogAIBot"}?start=${companyCode}`
+                          );
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className="p-2 hover:bg-white/10 rounded-lg transition-all"
+                      >
+                        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-gray-400" />
+                  <label className="text-sm font-medium text-gray-300">Employee Roster</label>
+                </div>
+                <p className="text-xs text-gray-500">CSV or tab-separated: Employee ID, Name (one per line)</p>
+                <textarea
+                  value={rosterText}
+                  onChange={(e) => setRosterText(e.target.value)}
+                  placeholder={"EMP-001, John Smith\nEMP-002, Jane Doe\nEMP-003, Bob Wilson"}
+                  rows={5}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                />
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 cursor-pointer transition-all text-sm">
+                    <Upload className="w-4 h-4" />
+                    {rosterFile ? rosterFile.name : "Upload CSV"}
+                    <input
+                      type="file"
+                      accept=".csv,.txt,.tsv"
+                      onChange={(e) => setRosterFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                  </label>
+                  {employeeCount > 0 && (
+                    <span className="text-sm text-green-400">✅ {employeeCount} employees added</span>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={handleCompanySetup}
+                disabled={loading || !companyName}
+                className="w-full py-3.5 rounded-full bg-primary hover:bg-primary/90 text-white font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                Complete Setup
               </button>
             </div>
           )}

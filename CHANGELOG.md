@@ -1,5 +1,87 @@
 # Changelog — RepLog AI (Mangal)
 
+## 2026-02-24 — Session 8: Analytics Tab, UX Polish & Dashboard Refinements
+
+### Added
+- **Analytics tab** (`/dashboard/analytics`) — Full rep-level performance analytics:
+  - Top KPI cards: Total Calls, Avg Fill Rate, Total Time Saved, Follow-ups Scheduled
+  - Dynamic stage breakdown KPIs — auto-detected from Notion select/multi_select columns (shows count + %)
+  - Rep performance table with per-rep metrics and dynamic stage columns from Notion schema
+  - Period filter buttons: Last 14 / 30 / 60 / 90 days
+  - Rep search by name or employee code
+  - CSV export with all metrics
+  - Totals footer row
+- **`/api/analytics`** — New API route with configurable `?days=` param, groups entries by rep, computes fill rate, time saved, follow-ups, and tallies all select column options
+- **Topbar dropdown menu** — User avatar/name now opens a dropdown with Settings and Sign Out options
+- **Avg Time Saved / Rep KPI** — New card on Overview, uses sliding 14-day window anchored to company min date
+
+### Changed
+- **Sidebar** — Removed Settings, Sign Out, and "Telegram Bot Active" text; added Analytics nav item
+- **Topbar** — Removed non-functional search bar; added dropdown with Settings + Sign Out (moved from sidebar)
+- **CRM Fill Rate** — Fixed 0% bug: was checking hardcoded field names, now reads actual Notion schema keys; counts entry as filled if ≥80% of schema fields have values
+- **Follow-ups Due Today** — Now fuzzy-matches any key containing follow_up, next_date, or due_date
+- **Time Saved chart** — Replaced grouped bar chart with cumulative area chart (ascending line); chart starts from company's first entry date (not hardcoded 14 days back)
+- **Overview KPI cards** — Replaced "Time Saved" total with "Avg Time Saved / Rep" (last 14 days)
+
+---
+
+## 2026-02-24 — Session 7: Dashboard v2 — KPI Cards, 14-Day Chart & History Filters
+
+### Added
+- **New KPI cards on Overview** — Replaced old 4 cards (Total Entries, This Month, Synced, Failed) with:
+  - **Logs This Week** — voice notes submitted since Monday
+  - **CRM Fill Rate** — % of logs with all key fields auto-populated
+  - **Time Saved** — estimated minutes saved vs manual CRM entry (total logs × 8 min)
+  - **Follow-ups Due Today** — count of follow-up actions due today extracted from voice logs
+- **Cumulative Time Saved area chart** (Recharts) below KPI cards
+- **History page filters** — Rep Name dropdown, Date Range calendar picker (From/To), CSV export (Excel-compatible with BOM)
+- **History search** — Now also matches rep names
+- **History entry counter** — Shows "X of Y entries" with active filter indicator
+- **Installed `recharts`** dependency for charting
+
+### Changed
+- `app/api/dashboard/route.ts` — Added KPI computations (logsThisWeek, crmFillRate, timeSavedMins, followUpsDueToday) and 14-day chart data aggregation
+- `components/dashboard/overview-cards.tsx` — Rewritten to accept `kpi` prop with 4 new metric cards (color-coded icons)
+- `app/dashboard/page.tsx` — Imports Recharts, renders grouped BarChart, passes `kpi` to OverviewCards
+- `app/dashboard/history/page.tsx` — Added rep filter, date range, CSV export, combined filter logic
+
+---
+
+## 2026-02-24 — Session 6: Telegram Bot Pivot Complete 🎉
+
+### Milestone
+**Full Telegram bot pipeline working end-to-end:** Admin onboards → uploads employee roster → shares bot link → reps click link → enter Employee ID → send voice notes → auto-transcribed + extracted + synced to Notion with rep attribution.
+
+### Added
+- **`lib/telegram.ts`** — Telegram Bot API wrapper (sendMessage, getFile, downloadFile, setWebhook, deleteWebhook, getMe)
+- **`lib/telegram-pipeline.ts`** — Headless voice processing pipeline (download .oga → Supabase Storage → Whisper → Claude → Notion sync → bot reply)
+- **`/api/webhooks/telegram`** — Webhook handler: deep link routing, employee matching, voice processing, conversation state management
+- **`/api/telegram/setup`** — Webhook registration endpoint
+- **`/api/employees`** — Employee roster CRUD (GET/POST/DELETE)
+- **Onboarding Step 4: Company Setup** — Company name, auto-generated code, CSV/paste employee roster upload, deep link sharing
+- **Settings: Telegram Bot section** — Company code, bot link, webhook status
+- **Settings: Employee Roster section** — View/add/remove employees, Telegram link status
+
+### Changed
+- **Prisma schema** — Added `Employee` model, `companyCode`/`companyName` on User, `employeeId`/`source`/`telegramMessageId`/`telegramChatId` on VoiceEntry, `EntrySource` enum
+- **Dashboard Overview** — Shows rep activity stats, bot link sharing
+- **History page** — Shows rep names, Telegram source badges
+- **Notion API calls** — Switched to raw fetch with `Notion-Version: 2022-06-28` to fix SDK search/mapping issues
+
+### Infrastructure
+- Telegram webhook registered via ngrok for development
+- Bot: @RepLogAIBot
+
+---
+
+## 2026-02-24 — Session 5: Bug Fixes & Cache Recovery
+
+### Fixed
+- **Pages hanging on load** — Corrupted `.next` cache; cleared and rebuilt
+- **Next.js build errors** — Fixed Prisma schema/env var issues during `db push`
+
+---
+
 ## 2026-02-24 — Session 4: Sprint 5 & 6 Complete (Settings, Billing, Polish)
 
 ### Added

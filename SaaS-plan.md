@@ -1,7 +1,7 @@
 # RepLog AI — SaaS Build Plan (Live)
 **Date:** 2026-02-24  
 **POC:** AdaL  
-**Status:** Building — Sprint 2 Complete
+**Status:** Building — Sprint 9 Complete (Analytics Tab + UX Polish)
 
 ---
 
@@ -124,6 +124,35 @@ Next.js App Router
 - [x] Reset onboarding feature in Settings → Danger Zone
 - [x] Production build passes (`next build` ✅)
 
+### Sprint 7: Telegram Bot Pivot ✅ COMPLETE
+- [x] Prisma schema updates — Employee model, companyCode/companyName on User, EntrySource enum, telegram fields on VoiceEntry
+- [x] `lib/telegram.ts` — Telegram Bot API wrapper (sendMessage, getFile, downloadFile, setWebhook, deleteWebhook, getMe)
+- [x] `lib/telegram-pipeline.ts` — Headless voice pipeline (download → storage → Whisper → Claude → Notion sync → bot reply)
+- [x] `/api/webhooks/telegram` — Full webhook handler (deep link, employee matching, voice processing)
+- [x] `/api/telegram/setup` — Webhook registration endpoint
+- [x] `/api/employees` — Employee roster CRUD (GET/POST/DELETE)
+- [x] Onboarding Step 4: Company Setup (code generation, roster upload, deep link sharing)
+- [x] Settings: Telegram Bot section + Employee Roster management
+- [x] Dashboard & History updated for rep attribution + Telegram badges
+- [x] Notion API switched to raw fetch with v2022-06-28 (fixes SDK search issues)
+
+### Sprint 8: Dashboard v2 — KPIs, Analytics & History Filters ✅ COMPLETE
+- [x] New KPI cards: Logs This Week, CRM Fill Rate, Avg Time Saved/Rep, Follow-ups Due Today
+- [x] Cumulative Time Saved area chart (Recharts) — starts from company's first entry date
+- [x] History page: Rep Name filter, Date Range calendar picker, CSV export
+- [x] History search matches rep names + entry counter with filter indicator
+- [x] Installed `recharts` charting library
+
+### Sprint 9: Analytics Tab & UX Polish ✅ COMPLETE
+- [x] `/dashboard/analytics` page — rep-level performance table with dynamic Notion schema columns
+- [x] `/api/analytics` route — groups entries by rep, computes fill rate, time saved, follow-ups, stage tallies
+- [x] Dynamic stage breakdown from Notion select/multi_select columns (auto-detected per user)
+- [x] Period filter buttons (14/30/60/90 days), rep search, CSV export, totals footer
+- [x] Topbar dropdown menu with Settings + Sign Out (moved from sidebar)
+- [x] Sidebar cleaned: removed Settings, Sign Out, Telegram Bot Active text; added Analytics nav
+- [x] Fixed CRM Fill Rate (now uses actual Notion schema keys, ≥80% threshold)
+- [x] Fixed Avg Time Saved/Rep sliding window logic (min date as Day 1)
+
 ---
 
 ## 📁 File Structure
@@ -134,25 +163,25 @@ app/
 ├── layout.tsx                  # Root layout (existing)
 ├── globals.css                 # Styles (existing)
 ├── auth/
-│   ├── page.tsx                # Sign in (uses SignIn1 component)
-│   ├── signup/page.tsx         # Sign up (uses SignUp1 component)
-│   ├── forgot-password/page.tsx # Reset password (uses ForgotPassword1)
+│   ├── page.tsx                # Sign in (GitHub OAuth)
+│   ├── signup/page.tsx         # Sign up (GitHub OAuth)
+│   ├── forgot-password/page.tsx # Reset password
 │   └── callback/route.ts      # OAuth callback
 ├── onboarding/
-│   ├── page.tsx                # Multi-step wizard
+│   ├── page.tsx                # Multi-step wizard (4 steps incl. Company Setup)
 │   └── layout.tsx
 ├── dashboard/
 │   ├── layout.tsx              # Sidebar + topbar
-│   ├── page.tsx                # Overview
-│   ├── capture/
-│   │   ├── page.tsx            # Voice record
-│   │   └── review/page.tsx     # Review fields
+│   ├── page.tsx                # Overview (KPI cards + 14-day chart + rep stats)
 │   ├── history/
-│   │   ├── page.tsx            # Entry list
+│   │   ├── page.tsx            # Entry list (filters, search, CSV export)
 │   │   └── [id]/page.tsx       # Detail
+│   ├── analytics/page.tsx      # Rep-level analytics (dynamic Notion columns)
 │   ├── integrations/page.tsx   # Notion + coming soon
-│   └── settings/page.tsx       # All settings
+│   └── settings/page.tsx       # Account, Telegram, Employees, Billing
 ├── api/
+│   ├── dashboard/route.ts      # Overview KPIs, chart data, rep stats
+│   ├── analytics/route.ts      # Rep-level analytics API (?days=14|30|60|90)
 │   ├── oauth/notion/
 │   │   ├── start/route.ts
 │   │   └── callback/route.ts
@@ -167,9 +196,15 @@ app/
 │   ├── stripe/
 │   │   ├── checkout/route.ts
 │   │   └── portal/route.ts
+│   ├── telegram/
+│   │   └── setup/route.ts      # Webhook registration
+│   ├── employees/route.ts      # Employee roster CRUD
+│   ├── history/
+│   │   ├── route.ts            # History list API
+│   │   └── [id]/route.ts       # Entry detail API
 │   └── webhooks/
 │       ├── stripe/route.ts
-│       └── whatsapp/route.ts
+│       └── telegram/route.ts   # Telegram bot webhook handler
 components/
 ├── ui/                         # Shadcn + custom
 │   ├── modern-stunning-sign-in.tsx
@@ -178,30 +213,27 @@ components/
 ├── dashboard/
 │   ├── sidebar.tsx
 │   ├── topbar.tsx
-│   ├── overview-cards.tsx
-│   ├── voice-recorder.tsx
-│   ├── review-panel.tsx
-│   ├── field-editor.tsx
-│   ├── sync-result.tsx
-│   ├── history-table.tsx
-│   ├── schema-mapper.tsx
-│   └── notion-connector.tsx
+│   └── overview-cards.tsx      # 4 KPI cards (Logs, Fill Rate, Time Saved, Follow-ups)
 lib/
 ├── utils.ts                    # Existing
 ├── supabase/
-│   ├── client.ts               # Browser client (bypass mode)
+│   ├── client.ts               # Browser client
 │   ├── server.ts               # Server client
-│   └── middleware.ts            # Auth helper (bypass mode)
+│   ├── service.ts              # Service-role client (bypasses RLS)
+│   └── middleware.ts            # Auth helper
 ├── prisma.ts                   # Singleton
-├── notion.ts                   # API helpers
+├── notion.ts                   # API helpers (raw fetch, v2022-06-28)
+├── telegram.ts                 # Telegram Bot API wrapper
+├── telegram-pipeline.ts        # Headless voice processing pipeline
 ├── ai/
 │   ├── transcribe.ts           # Whisper
 │   ├── extract.ts              # Schema-aware extraction
 │   └── prompts.ts              # LLM prompts
 ├── stripe.ts                   # Stripe helpers
+├── usage.ts                    # Usage tracking + plan limits
 └── encryption.ts               # Token encrypt/decrypt
 prisma/
-└── schema.prisma               # Full schema (Prisma 5)
+└── schema.prisma               # Full schema (User, Employee, VoiceEntry, etc.)
 ```
 
 ---
@@ -233,10 +265,8 @@ STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 
-# WhatsApp (Future)
-# WHATSAPP_VERIFY_TOKEN=
-# WHATSAPP_ACCESS_TOKEN=
-# WHATSAPP_PHONE_NUMBER_ID=
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=  # From @BotFather
 
 # Encryption
 ENCRYPTION_KEY=  # 32-byte hex for token encryption
@@ -249,9 +279,15 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ## 📝 Notes
 - Refer to `backend-design.md` for detailed backend logic
-- Refer to `saas-features.md` for screen/UX specifications
+- Refer to `saas-features.md` for screen/UX specifications (updated to v2 Telegram-first)
+- Refer to `plan_telegram_pivot.md` for Telegram bot architecture details
 - Landing page theme must be maintained across all new pages
 - All "Start Free" / "Get Started" / "Log in" buttons → `/auth`
-- App running on `localhost:3001` (dev server)
+- App running on `localhost:3000` (dev server)
 - Prisma 5 used (not v7) to avoid config issues
+- Auth: GitHub OAuth (Google OAuth removed)
 - Auth pages use stunning glass-card design matching the dark theme
+- Telegram webhook: registered via ngrok for development
+- Bot: @RepLogAIBot — shared bot, one per deployment
+- Charts: Recharts (installed for dashboard 14-day activity chart)
+- Notion API: Uses raw fetch with `Notion-Version: 2022-06-28` (bypasses SDK limitations)

@@ -38,10 +38,27 @@ export async function POST() {
     });
   }
 
+  const priceId = process.env.STRIPE_PRO_PRICE_ID;
+
+  const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = priceId
+    ? { price: priceId, quantity: 1 }
+    : {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: "RepLog AI Pro",
+            description: "1,000 entries/month · 5 min voice notes · Priority AI processing",
+          },
+          unit_amount: 7900,
+          recurring: { interval: "month" },
+        },
+        quantity: 1,
+      };
+
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
-    line_items: [{ price: process.env.STRIPE_PRO_PRICE_ID!, quantity: 1 }],
+    line_items: [lineItem],
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?billing=success`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?billing=canceled`,
   });

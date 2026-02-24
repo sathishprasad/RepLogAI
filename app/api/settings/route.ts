@@ -54,6 +54,10 @@ export async function GET() {
         fillable: s.fillable !== false,
       })),
     } : { configured: false },
+    company: {
+      companyName: dbUser.companyName || "",
+      companyCode: dbUser.companyCode || "",
+    },
     billing: {
       plan,
       entriesUsed: entriesThisMonth,
@@ -70,11 +74,16 @@ export async function PATCH(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { name } = body;
+  const { name, companyName, companyCode } = body;
+
+  const data: any = {};
+  if (name !== undefined) data.name = name;
+  if (companyName !== undefined) data.companyName = companyName;
+  if (companyCode !== undefined) data.companyCode = companyCode;
 
   await prisma.user.update({
     where: { email: user.email! },
-    data: { name },
+    data,
   });
 
   return NextResponse.json({ success: true });

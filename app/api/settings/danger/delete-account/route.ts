@@ -15,7 +15,7 @@ export async function POST() {
   await prisma.stripeCustomer.deleteMany({ where: { userId: dbUser.id } });
   await prisma.notionDatabaseConfig.deleteMany({ where: { userId: dbUser.id } });
   await prisma.notionConnection.deleteMany({ where: { userId: dbUser.id } });
-  await prisma.allowedSenderPhoneNumber.deleteMany({ where: { userId: dbUser.id } });
+  await prisma.employee.deleteMany({ where: { adminId: dbUser.id } });
   await prisma.user.delete({ where: { id: dbUser.id } });
 
   await supabase.auth.signOut();

@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, CheckCircle, AlertTriangle, TrendingUp } from "lucide-react";
+import { Mic, BarChart3, Clock, CalendarCheck, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
@@ -8,27 +8,16 @@ interface StatCardProps {
   value: string;
   subtitle: string;
   icon: React.ReactNode;
-  trend?: string;
-  trendUp?: boolean;
+  iconBg: string;
 }
 
-function StatCard({ title, value, subtitle, icon, trend, trendUp }: StatCardProps) {
+function StatCard({ title, value, subtitle, icon, iconBg }: StatCardProps) {
   return (
     <div className="bg-white rounded-2xl border border-border p-6 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-4">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", iconBg)}>
           {icon}
         </div>
-        {trend && (
-          <span
-            className={cn(
-              "text-xs font-semibold px-2 py-1 rounded-full",
-              trendUp ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
-            )}
-          >
-            {trend}
-          </span>
-        )}
       </div>
       <p className="text-2xl font-bold text-text-primary">{value}</p>
       <p className="text-sm text-muted-text mt-1">{title}</p>
@@ -37,43 +26,52 @@ function StatCard({ title, value, subtitle, icon, trend, trendUp }: StatCardProp
   );
 }
 
-interface OverviewCardsProps {
-  stats: {
-    totalEntries: number;
-    thisMonth: number;
-    synced: number;
-    failed: number;
-  };
+interface KpiData {
+  logsThisWeek: number;
+  crmFillRate: number;
+  timeSavedMins: number;
+  followUpsDueToday: number;
+  avgTimeSavedPerRep: number;
 }
 
-export function OverviewCards({ stats }: OverviewCardsProps) {
+export function OverviewCards({ kpi }: { kpi: KpiData }) {
+  const hours = Math.floor(kpi.timeSavedMins / 60);
+  const mins = kpi.timeSavedMins % 60;
+  const timeSaved = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+
+  const avgH = Math.floor(kpi.avgTimeSavedPerRep / 60);
+  const avgM = kpi.avgTimeSavedPerRep % 60;
+  const avgTimeSaved = avgH > 0 ? `${avgH}h ${avgM}m` : `${avgM}m`;
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard
-        title="Total Entries"
-        value={stats.totalEntries.toString()}
-        subtitle="All time voice logs"
+        title="Logs This Week"
+        value={kpi.logsThisWeek.toString()}
+        subtitle="Voice notes submitted this week"
         icon={<Mic className="w-5 h-5 text-primary" />}
-        trend="+12%"
-        trendUp
+        iconBg="bg-primary/10"
       />
       <StatCard
-        title="This Month"
-        value={stats.thisMonth.toString()}
-        subtitle="Entries this billing cycle"
-        icon={<TrendingUp className="w-5 h-5 text-primary" />}
+        title="CRM Fill Rate"
+        value={`${kpi.crmFillRate}%`}
+        subtitle="Logs with ≥80% fields auto-filled"
+        icon={<BarChart3 className="w-5 h-5 text-emerald-600" />}
+        iconBg="bg-emerald-50"
       />
       <StatCard
-        title="Synced to Notion"
-        value={stats.synced.toString()}
-        subtitle="Successfully written"
-        icon={<CheckCircle className="w-5 h-5 text-green-500" />}
+        title="Avg Time Saved / Rep"
+        value={avgTimeSaved}
+        subtitle="Per rep in the last 14 days"
+        icon={<Users className="w-5 h-5 text-violet-600" />}
+        iconBg="bg-violet-50"
       />
       <StatCard
-        title="Failed"
-        value={stats.failed.toString()}
-        subtitle="Needs attention"
-        icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
+        title="Follow-ups Due Today"
+        value={kpi.followUpsDueToday.toString()}
+        subtitle="Actions extracted from voice logs"
+        icon={<CalendarCheck className="w-5 h-5 text-amber-600" />}
+        iconBg="bg-amber-50"
       />
     </div>
   );
