@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCachedFetch } from "@/lib/use-cached-fetch";
 
 type EntryStatus = "SYNCED" | "PENDING_APPROVAL" | "FAILED" | "RECORDING" | "TRANSCRIBING" | "EXTRACTING" | "CANCELED";
 
@@ -45,29 +46,13 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 
 export default function HistoryPage() {
   const router = useRouter();
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: historyData, loading } = useCachedFetch<{ entries: HistoryEntry[] }>("/api/history");
+  const entries = historyData?.entries || [];
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [repFilter, setRepFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-
-  useEffect(() => {
-    const fetchEntries = async () => {
-      try {
-        const res = await fetch("/api/history");
-        if (res.status === 401) { router.push("/auth"); return; }
-        const data = await res.json();
-        setEntries(data.entries || []);
-      } catch (err) {
-        console.error("Failed to fetch history:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEntries();
-  }, [router]);
 
   const repNames = useMemo(() => {
     const names = new Set<string>();

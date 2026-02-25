@@ -9,10 +9,8 @@ export default function AuthPage() {
   const router = useRouter();
   const supabase = createClient();
   const [authError, setAuthError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>("");
 
   useEffect(() => {
-    setDebugInfo(`Supabase client: ${supabase ? "initialized" : "NULL (bypass mode)"}`);
     if (!supabase) return;
     const {
       data: { subscription },
@@ -49,34 +47,11 @@ export default function AuthPage() {
     }
   };
 
-  const handleEmailSignIn = async (email: string, password: string) => {
-    setAuthError(null);
-    if (!supabase) {
-      setAuthError("Supabase client is NULL");
-      return;
-    }
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
-      setAuthError(`Email auth error: ${error.message}`);
-      console.error("Auth error:", error.message);
-    }
-  };
-
-  const handleDevBypass = () => {
-    router.push("/dashboard");
-  };
-
   return (
     <div>
       <SignIn1
         onGithubSignIn={handleGithubSignIn}
-        onEmailSignIn={handleEmailSignIn}
         authError={authError}
-        debugInfo={debugInfo}
-        onDevBypass={handleDevBypass}
       />
     </div>
   );

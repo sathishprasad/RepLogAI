@@ -6,6 +6,17 @@ export async function trackUsage(userId: string, type: "ENTRIES_CREATED" | "AUDI
   });
 }
 
+function getPlanLimits(plan: string) {
+  switch (plan) {
+    case "SCALE":
+      return { maxEntries: -1, maxAudioSecs: 300, maxReps: 999, updatesPerRepPerDay: -1 };
+    case "PRO":
+      return { maxEntries: -1, maxAudioSecs: 300, maxReps: 10, updatesPerRepPerDay: -1 };
+    default:
+      return { maxEntries: -1, maxAudioSecs: 60, maxReps: 3, updatesPerRepPerDay: 10 };
+  }
+}
+
 export async function checkUsageLimits(userId: string): Promise<{ allowed: boolean; reason?: string }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -13,23 +24,37 @@ export async function checkUsageLimits(userId: string): Promise<{ allowed: boole
   });
 
   const plan = user?.stripeCustomer?.plan || "FREE";
-  const maxEntries = plan === "PRO" ? 1000 : 30;
-  const maxAudioSecs = plan === "PRO" ? 300 : 60;
+  const limits = getPlanLimits(plan);
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  if (limits.updatesPerRepPerDay > 0) {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const entriesThisMonth = await prisma.voiceEntry.count({
-    where: { userId, createdAt: { gte: startOfMonth } },
-  });
+    const entriesToday = await prisma.voiceEntry.count({
+      where: { userId, createdAt: { gte: startOfDay } },
+    });
 
-  if (entriesThisMonth >= maxEntries) {
-    return { allowed: false, reason: `Monthly limit reached (${maxEntries} entries). Upgrade to Pro for more.` };
+    const repCount = await prisma.employee.count({ where: { adminId: userId } });
+    const dailyLimit = limits.updatesPerRepPerDay * Math.max(repCount, 1);
+
+    if (entriesToday >= dailyLimit) {
+      return { allowed: false, reason: `Daily limit reached (${dailyLimit} updates for ${repCount} reps). Upgrade to Pro for unlimited updates.` };
+    }
   }
 
   return { allowed: true };
 }
 
 export function getMaxAudioSecs(plan: string): number {
-  return plan === "PRO" ? 300 : 60;
+  return getPlanLimits(plan).maxAudioSecs;
+}
+
+export function getBillingLimits(plan: string) {
+  const limits = getPlanLimits(plan);
+  return {
+    maxReps: limits.maxReps,
+    maxAudioSecs: limits.maxAudioSecs,
+    updatesPerRepPerDay: limits.updatesPerRepPerDay,
+    unlimitedUpdates: limits.updatesPerRepPerDay === -1,
+  };
 }

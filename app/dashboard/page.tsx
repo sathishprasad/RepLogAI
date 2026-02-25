@@ -6,7 +6,57 @@ import { ArrowRight, Clock, CheckCircle2, XCircle, FileAudio, AlertTriangle, Loa
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { useCachedFetch } from "@/lib/use-cached-fetch";
+import dynamic from "next/dynamic";
+
+const RechartsArea = dynamic(() =>
+  import("recharts").then((mod) => {
+    const { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } = mod;
+    return {
+      default: ({ data }: { data: any[] }) => (
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data}>
+            <defs>
+              <linearGradient id="timeSavedGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#4F7CFF" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#4F7CFF" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+            <YAxis
+              tick={{ fontSize: 12, fill: "#94a3b8" }}
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+              tickFormatter={(v: number) => v >= 60 ? `${Math.floor(v / 60)}h` : `${v}m`}
+            />
+            <Tooltip
+              contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}
+              labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+              formatter={(value: any) => {
+                if (value == null) return ["", "Time Saved"];
+                const h = Math.floor(value / 60);
+                const m = value % 60;
+                return [h > 0 ? `${h}h ${m}m` : `${m}m`, "Time Saved"];
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="timeSaved"
+              stroke="#4F7CFF"
+              strokeWidth={2.5}
+              fill="url(#timeSavedGradient)"
+              dot={{ r: 3, fill: "#4F7CFF", strokeWidth: 0 }}
+              activeDot={{ r: 5, fill: "#4F7CFF", stroke: "#fff", strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      ),
+    };
+  }),
+  { ssr: false, loading: () => <div className="h-[300px] bg-bg-light rounded-xl animate-pulse" /> }
+);
 
 const statusConfig = {
   SYNCED: { label: "Synced", color: "bg-green-50 text-green-700", icon: CheckCircle2 },
@@ -36,7 +86,7 @@ interface ChartDay {
 interface DashboardData {
   user: { name: string; email: string; avatarUrl: string | null };
   stats: { totalEntries: number; thisMonth: number; synced: number; failed: number };
-  kpi: { logsThisWeek: number; crmFillRate: number; timeSavedMins: number; followUpsDueToday: number };
+  kpi: { logsThisWeek: number; crmFillRate: number; timeSavedMins: number; followUpsDueToday: number; avgTimeSavedPerRep: number };
   chartData: ChartDay[];
   telegram: { companyCode: string; companyName: string; totalReps: number; linkedReps: number; repStats: RepStat[] };
   recentEntries: { id: string; title: string; status: string; date: string; database: string; source?: string; repName?: string | null }[];
@@ -47,27 +97,14 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error } = useCachedFetch<DashboardData>("/api/dashboard");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch("/api/dashboard");
-        if (res.status === 401) { router.push("/auth"); return; }
-        if (!res.ok) { const err = await res.json(); setError(err.error || "Failed to load"); return; }
-        const json = await res.json();
-        if (!json.onboardingComplete) { router.push("/onboarding"); return; }
-        setData(json);
-      } catch (err: any) { setError(err.message || "Network error"); }
-      finally { setLoading(false); }
-    };
-    fetchData();
-  }, [router]);
+    if (data && !data.onboardingComplete) router.push("/onboarding");
+  }, [data, router]);
 
-  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>;
+  if (loading && !data) return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>;
   if (error) return (
     <div className="max-w-lg mx-auto text-center py-24 space-y-4">
       <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto" />
@@ -94,9 +131,15 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">
-            {data.user.name ? `Welcome back, ${data.user.name.split(" ")[0]}` : "Dashboard"}
+            {data.user.name
+              ? `${(() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; })()}, ${data.user.name.split(" ")[0]}`
+              : "Dashboard"}
           </h1>
-          <p className="text-muted-text mt-1">Your voice-to-CRM command center</p>
+          <p className="text-muted-text mt-1">
+            {data.kpi.followUpsDueToday > 0 || data.kpi.logsThisWeek > 0
+              ? `You have ${data.kpi.followUpsDueToday} follow-up${data.kpi.followUpsDueToday !== 1 ? "s" : ""} due today and ${data.kpi.logsThisWeek} meeting${data.kpi.logsThisWeek !== 1 ? "s" : ""} logged this week.`
+              : "Your voice-to-CRM command center"}
+          </p>
         </div>
         {deepLink && (
           <button
@@ -129,43 +172,7 @@ export default function DashboardPage() {
         <h2 className="text-lg font-bold text-text-primary mb-1">Time Saved</h2>
         <p className="text-sm text-muted-text mb-6">Cumulative minutes saved vs manual CRM entry (last 14 days)</p>
         <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.chartData}>
-              <defs>
-                <linearGradient id="timeSavedGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4F7CFF" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#4F7CFF" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-              <YAxis
-                tick={{ fontSize: 12, fill: "#94a3b8" }}
-                tickLine={false}
-                axisLine={false}
-                allowDecimals={false}
-                tickFormatter={(v: number) => v >= 60 ? `${Math.floor(v / 60)}h` : `${v}m`}
-              />
-              <Tooltip
-                contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}
-                labelStyle={{ fontWeight: 600, marginBottom: 4 }}
-                formatter={(value: number) => {
-                  const h = Math.floor(value / 60);
-                  const m = value % 60;
-                  return [h > 0 ? `${h}h ${m}m` : `${m}m`, "Time Saved"];
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="timeSaved"
-                stroke="#4F7CFF"
-                strokeWidth={2.5}
-                fill="url(#timeSavedGradient)"
-                dot={{ r: 3, fill: "#4F7CFF", strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: "#4F7CFF", stroke: "#fff", strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <RechartsArea data={data.chartData} />
         </div>
       </div>
 

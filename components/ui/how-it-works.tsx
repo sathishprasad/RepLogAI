@@ -1,134 +1,61 @@
 "use client";
 
 import { cn } from "../../lib/utils";
-import { Mic, Database, Zap } from "lucide-react";
+import { Mic, Zap, Database } from "lucide-react";
 import type React from "react";
 
 interface HowItWorksProps extends React.HTMLAttributes<HTMLElement> {}
 
-interface StepCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  benefits: string[];
-}
-
-const StepCard: React.FC<StepCardProps> = ({
-  icon,
-  title,
-  description,
-  benefits,
-}) => (
-  <div
-    className={cn(
-      "relative rounded-2xl border border-border bg-white p-6 text-text-primary transition-all duration-300 ease-in-out shadow-sm",
-      "hover:scale-[1.02] hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)] hover:border-primary/30"
-    )}
-  >
-    {/* Icon */}
-    <div className="relative z-10 mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary">
-      {icon}
-    </div>
-    {/* Title and Description */}
-    <h3 className="relative z-10 mb-2 text-xl font-bold">{title}</h3>
-    <p className="relative z-10 mb-6 text-muted-text leading-relaxed">{description}</p>
-    {/* Benefits List */}
-    <ul className="relative z-10 space-y-3">
-      {benefits.map((benefit, index) => (
-        <li key={index} className="flex items-center gap-3">
-          <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/20">
-            <div className="h-2 w-2 rounded-full bg-primary"></div>
-          </div>
-          <span className="text-muted-text text-sm font-medium">{benefit}</span>
-        </li>
-      ))}
-    </ul>
-  </div>
-);
-
-export const HowItWorks: React.FC<HowItWorksProps> = ({
-  className,
-  ...props
-}) => {
-  const stepsData = [
-    {
-      icon: <Mic className="h-6 w-6" />,
-      title: "1. Capture",
-      description: "Speak your update in seconds. Our voice-first assistant captures all the nuances of your sales meeting on the go.",
-      benefits: [
-        "No typing required",
-        "Captures tone and context",
-        "Works seamlessly on mobile"
-      ],
-    },
-    {
-      icon: <Zap className="h-6 w-6" />,
-      title: "2. Structure",
-      description: "AI automatically extracts key fields like contact info, deal stage, objections, and next steps from your voice note.",
-      benefits: [
-        "Identifies action items instantly",
-        "Maps to custom CRM fields",
-        "High accuracy transcription"
-      ],
-    },
-    {
-      icon: <Database className="h-6 w-6" />,
-      title: "3. Sync",
-      description: "Your CRM is updated instantly. Tasks are created and summaries are logged without a single keystroke of manual entry.",
-      benefits: [
-        "Zero manual data entry",
-        "Automated follow-up tasks",
-        "Real-time pipeline visibility"
-      ],
-    },
+export const HowItWorks: React.FC<HowItWorksProps> = ({ className, ...props }) => {
+  const steps = [
+    { icon: <Mic className="h-6 w-6" />, label: "Speak", description: "Record a 60-second voice note after any meeting." },
+    { icon: <Zap className="h-6 w-6" />, label: "AI Extracts", description: "AI pulls deal stage, contacts, objections, and next steps.", highlighted: true },
+    { icon: <Database className="h-6 w-6" />, label: "CRM Updates Instantly", description: "Your CRM is updated with zero manual entry." },
   ];
 
   return (
-    <section
-      id="how-it-works"
-      className={cn("w-full bg-bg-light py-24", className)}
-      {...props}
-    >
+    <section id="how-it-works" className={cn("w-full bg-bg-light py-28", className)} {...props}>
       <div className="max-w-[1200px] mx-auto px-6">
         <div className="mx-auto mb-16 max-w-2xl text-center">
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 text-text-primary">
-            How It Works: AI That Simplifies Data
+            How It Works
           </h2>
-          <p className="mt-4 text-lg text-muted-text">
-            Our AI-driven CRM automates routine work, centralizes customer data, and delivers insights so you can focus on selling.
-          </p>
+          <p className="mt-2 text-lg text-muted-text">Three steps. Zero typing.</p>
         </div>
 
-        {/* Step Indicators with Connecting Line */}
-        <div className="relative mx-auto mb-12 w-full max-w-4xl hidden md:block">
-          <div
-            aria-hidden="true"
-            className="absolute left-[16.6667%] top-1/2 h-px w-[66.6667%] -translate-y-1/2 bg-border"
-          ></div>
-          <div className="relative grid grid-cols-3">
-            {stepsData.map((_, index) => (
+        <div className="relative mx-auto max-w-5xl">
+          <div className="hidden md:block absolute top-1/2 left-[15%] right-[15%] h-px bg-border -translate-y-1/2 z-0" />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
+            {steps.map((step, index) => (
               <div
                 key={index}
-                className="flex h-10 w-10 items-center justify-center justify-self-center rounded-full bg-white font-bold text-primary ring-4 ring-bg-light border border-border z-10 shadow-sm"
+                className={cn(
+                  "relative rounded-2xl border bg-white p-8 text-center transition-all duration-300 hover:-translate-y-1",
+                  step.highlighted
+                    ? "border-primary shadow-[0_0_25px_rgba(79,124,255,0.15)] scale-[1.02]"
+                    : "border-border shadow-sm hover:shadow-md"
+                )}
               >
-                {index + 1}
+                <div className={cn(
+                  "mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-xl",
+                  step.highlighted
+                    ? "bg-primary text-white shadow-[0_0_15px_rgba(79,124,255,0.3)]"
+                    : "bg-primary/10 text-primary border border-primary/20"
+                )}>
+                  {step.icon}
+                </div>
+                <div className="text-xs font-bold uppercase tracking-widest text-primary mb-2">Step {index + 1}</div>
+                <h3 className="text-xl font-bold text-text-primary mb-3">{step.label}</h3>
+                <p className="text-muted-text leading-relaxed text-sm">{step.description}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Steps Grid */}
-        <div className="mx-auto grid max-w-4xl grid-cols-1 gap-8 md:grid-cols-3">
-          {stepsData.map((step, index) => (
-            <StepCard
-              key={index}
-              icon={step.icon}
-              title={step.title}
-              description={step.description}
-              benefits={step.benefits}
-            />
-          ))}
-        </div>
+        <p className="text-center mt-12 text-lg font-medium text-muted-text italic">
+          Done before you leave the parking lot.
+        </p>
       </div>
     </section>
   );

@@ -6,7 +6,16 @@ async function getAdmin() {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  return prisma.user.findUnique({ where: { email: user.email! } });
+  return prisma.user.findUnique({
+    where: { email: user.email! },
+    include: { stripeCustomer: true },
+  });
+}
+
+function getMaxReps(plan: string): number {
+  if (plan === "SCALE") return 999;
+  if (plan === "PRO") return 10;
+  return 3;
 }
 
 export async function GET() {
@@ -18,16 +27,33 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json({ employees });
+  const plan = admin.stripeCustomer?.plan || "FREE";
+  const maxReps = getMaxReps(plan);
+
+  return NextResponse.json({ employees, maxReps, plan });
 }
 
 export async function POST(request: Request) {
   const admin = await getAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const plan = admin.stripeCustomer?.plan || "FREE";
+  const maxReps = getMaxReps(plan);
+
+  const currentCount = await prisma.employee.count({ where: { adminId: admin.id } });
+
   const body = await request.json();
 
   if (body.bulk && Array.isArray(body.employees)) {
+    const newCount = body.employees.length;
+    if (currentCount + newCount > maxReps) {
+      return NextResponse.json({
+        error: `Rep limit reached. Your ${plan === "FREE" ? "Free" : plan} plan allows up to ${maxReps} reps. You have ${currentCount}. ${plan === "FREE" ? "Upgrade to Pro for up to 10 reps." : plan === "PRO" ? "Upgrade to Scale for unlimited reps." : ""}`,
+        maxReps,
+        currentCount,
+      }, { status: 403 });
+    }
+
     const created = await prisma.employee.createMany({
       data: body.employees.map((e: { employeeCode: string; name: string }) => ({
         adminId: admin.id,
@@ -37,6 +63,14 @@ export async function POST(request: Request) {
       skipDuplicates: true,
     });
     return NextResponse.json({ count: created.count });
+  }
+
+  if (currentCount >= maxReps) {
+    return NextResponse.json({
+      error: `Rep limit reached (${currentCount}/${maxReps}). ${plan === "FREE" ? "Upgrade to Pro for up to 10 reps." : plan === "PRO" ? "Upgrade to Scale for unlimited reps." : ""}`,
+      maxReps,
+      currentCount,
+    }, { status: 403 });
   }
 
   const { employeeCode, name } = body;

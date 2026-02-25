@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, BarChart3, Clock, CalendarCheck, Users } from "lucide-react";
+import { Mic, BarChart3, CalendarCheck, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {

@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState, useRef } from "react";
-import { Bell, Settings, LogOut, ChevronDown } from "lucide-react";
+import { Settings, LogOut, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 
@@ -41,11 +41,6 @@ export function Topbar() {
   return (
     <header className="h-16 bg-white border-b border-border flex items-center justify-end px-6 sticky top-0 z-40">
       <div className="flex items-center gap-4">
-        <button className="relative p-2 hover:bg-bg-light rounded-xl transition-colors">
-          <Bell className="w-5 h-5 text-muted-text" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
-        </button>
-
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}

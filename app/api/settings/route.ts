@@ -25,9 +25,21 @@ export async function GET() {
   });
 
   const plan = dbUser.stripeCustomer?.plan || "FREE";
-  const limits = plan === "PRO"
-    ? { maxEntries: 1000, maxAudioSecs: 300 }
-    : { maxEntries: 30, maxAudioSecs: 60 };
+
+  const repCount = await prisma.employee.count({ where: { adminId: dbUser.id } });
+  const maxReps = plan === "SCALE" ? 999 : plan === "PRO" ? 10 : 3;
+  const unlimitedUpdates = plan === "PRO" || plan === "SCALE";
+  const updatesPerRepPerDay = unlimitedUpdates ? -1 : 10;
+  const maxAudioSecs = plan === "PRO" || plan === "SCALE" ? 300 : 60;
+
+  const now2 = new Date();
+  const startOfDay = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate());
+  const entriesToday = await prisma.voiceEntry.count({
+    where: { userId: dbUser.id, createdAt: { gte: startOfDay } },
+  });
+
+  const dailyLimit = unlimitedUpdates ? -1 : updatesPerRepPerDay * Math.max(repCount, 1);
+  const limits = { maxReps, maxAudioSecs, updatesPerRepPerDay, unlimitedUpdates, dailyLimit };
 
   const schema = dbUser.notionDatabaseConfig?.schemaSnapshotJson as any[] || [];
 
@@ -60,7 +72,8 @@ export async function GET() {
     },
     billing: {
       plan,
-      entriesUsed: entriesThisMonth,
+      entriesUsedToday: entriesToday,
+      repCount,
       limits,
       currentPeriodEnd: dbUser.stripeCustomer?.currentPeriodEnd?.toISOString() || null,
       hasSubscription: !!dbUser.stripeCustomer?.stripeSubscriptionId,
@@ -74,12 +87,13 @@ export async function PATCH(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { name, companyName, companyCode } = body;
+  const { name, companyName, companyCode, onboardingComplete } = body;
 
   const data: any = {};
   if (name !== undefined) data.name = name;
   if (companyName !== undefined) data.companyName = companyName;
   if (companyCode !== undefined) data.companyCode = companyCode;
+  if (onboardingComplete !== undefined) data.onboardingComplete = onboardingComplete;
 
   await prisma.user.update({
     where: { email: user.email! },

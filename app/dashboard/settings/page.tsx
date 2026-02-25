@@ -36,7 +36,7 @@ interface SettingsData {
   notion: { connected: boolean; workspaceName?: string; workspaceIcon?: string; connectedAt?: string };
   database: { configured: boolean; databaseId?: string; databaseName?: string; columns?: { name: string; type: string; fillable: boolean }[] };
   company: { companyName: string; companyCode: string };
-  billing: { plan: string; entriesUsed: number; limits: { maxEntries: number; maxAudioSecs: number }; currentPeriodEnd: string | null; hasSubscription: boolean };
+  billing: { plan: string; entriesUsedToday: number; repCount: number; limits: { maxReps: number; maxAudioSecs: number; updatesPerRepPerDay: number; unlimitedUpdates: boolean; dailyLimit: number }; currentPeriodEnd: string | null; hasSubscription: boolean };
 }
 
 function SettingsPageInner() {
@@ -53,8 +53,12 @@ function SettingsPageInner() {
   const [newEmpCode, setNewEmpCode] = useState("");
   const [newEmpName, setNewEmpName] = useState("");
   const [copied, setCopied] = useState(false);
+  const [scaleReps, setScaleReps] = useState(11);
+  const [selectedPlan, setSelectedPlan] = useState<"pro" | "scale">("pro");
+  const [isAnnual, setIsAnnual] = useState(true);
 
   const billingStatus = searchParams.get("billing");
+  const reconnected = searchParams.get("reconnected");
 
   useEffect(() => {
     if (activeSection === "telegram" || activeSection === "employees") fetchEmployees();
@@ -65,7 +69,11 @@ function SettingsPageInner() {
       setToast({ type: "success", message: "🎉 Subscription activated! You're now on the Pro plan." });
       setActiveSection("billing");
     }
-  }, [billingStatus]);
+    if (reconnected === "true") {
+      setToast({ type: "success", message: "✅ Notion reconnected successfully!" });
+      setActiveSection("notion");
+    }
+  }, [billingStatus, reconnected]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -108,10 +116,14 @@ function SettingsPageInner() {
 
   const handleReconnectNotion = () => { window.location.href = "/api/oauth/notion/start"; };
 
-  const handleUpgrade = async () => {
+  const handleUpgrade = async (plan: "pro" | "scale" = "pro", reps?: number) => {
     setActionLoading("upgrade");
     try {
-      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, reps: reps || scaleReps, interval: isAnnual ? "year" : "month" }),
+      });
       const { url, error } = await res.json();
       if (url) window.location.href = url;
       else showToast("error", error || "Failed to create checkout session");
@@ -164,11 +176,17 @@ function SettingsPageInner() {
   const handleAddEmployee = async () => {
     if (!newEmpCode || !newEmpName) return;
     try {
-      await fetch("/api/employees", {
+      const res = await fetch("/api/employees", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ employeeCode: newEmpCode, name: newEmpName }),
       });
+      const result = await res.json();
+      if (!res.ok) {
+        showToast("error", result.error || "Failed to add employee");
+        if (res.status === 403) setActiveSection("billing");
+        return;
+      }
       setNewEmpCode("");
       setNewEmpName("");
       fetchEmployees();
@@ -191,7 +209,7 @@ function SettingsPageInner() {
     { id: "account", label: "Account", icon: User },
     { id: "telegram", label: "Telegram Bot", icon: Bot },
     { id: "employees", label: "Employees", icon: Users },
-    { id: "notion", label: "Notion Connection", icon: Shield },
+    { id: "notion", label: "Manage Integrations", icon: Shield },
     { id: "mapping", label: "Database & Mapping", icon: Database },
     { id: "billing", label: "Billing", icon: CreditCard },
     { id: "danger", label: "Danger Zone", icon: Trash2 },
@@ -206,7 +224,11 @@ function SettingsPageInner() {
   }
 
   const d = data!;
-  const usagePercent = Math.min(100, Math.round((d.billing.entriesUsed / d.billing.limits.maxEntries) * 100));
+  const usagePercent = d.billing.limits.unlimitedUpdates
+    ? 0
+    : d.billing.limits.dailyLimit > 0
+      ? Math.min(100, Math.round((d.billing.entriesUsedToday / d.billing.limits.dailyLimit) * 100))
+      : 0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -409,7 +431,7 @@ function SettingsPageInner() {
 
           {activeSection === "notion" && (
             <div className="bg-white rounded-2xl border border-border p-6 space-y-6">
-              <h2 className="text-lg font-bold text-text-primary">Notion Connection</h2>
+              <h2 className="text-lg font-bold text-text-primary text-left">Manage Integrations</h2>
               {d.notion.connected ? (
                 <>
                   <div className="flex items-center gap-4 p-4 bg-green-50 border border-green-200 rounded-xl">
@@ -496,46 +518,102 @@ function SettingsPageInner() {
           )}
 
           {activeSection === "billing" && (
-            <div className="bg-white rounded-2xl border border-border p-6 space-y-6">
+            <div id="pricing" className="bg-white rounded-2xl border border-border p-6 space-y-6">
               <h2 className="text-lg font-bold text-text-primary">Billing</h2>
+
+              {/* Current Plan Summary */}
               <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl">
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <p className="text-sm font-bold text-text-primary flex items-center gap-2">
-                      {d.billing.plan === "PRO" && <Zap className="w-4 h-4 text-primary" />}
-                      {d.billing.plan === "PRO" ? "Pro Plan" : "Free Plan"}
+                      {(d.billing.plan === "PRO" || d.billing.plan === "SCALE") && <Zap className="w-4 h-4 text-primary" />}
+                      {d.billing.plan === "SCALE" ? "Scale Plan" : d.billing.plan === "PRO" ? "Pro Plan" : "Free Plan"}
                     </p>
                     <p className="text-xs text-muted-text">
-                      {d.billing.limits.maxEntries} entries/month · {d.billing.limits.maxAudioSecs}s max per note
+                      {d.billing.repCount} / {d.billing.limits.maxReps === 999 ? "∞" : d.billing.limits.maxReps} reps · {d.billing.limits.maxAudioSecs}s max per note
+                      {d.billing.limits.unlimitedUpdates ? " · Unlimited updates" : ` · ${d.billing.limits.updatesPerRepPerDay} updates/day per rep`}
                       {d.billing.currentPeriodEnd && ` · Renews ${new Date(d.billing.currentPeriodEnd).toLocaleDateString()}`}
                     </p>
                   </div>
                   <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">Current</span>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-muted-text">
-                    <span>{d.billing.entriesUsed} / {d.billing.limits.maxEntries} entries used</span>
-                    <span>{usagePercent}%</span>
+
+                {!d.billing.limits.unlimitedUpdates && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-muted-text">
+                      <span>{d.billing.entriesUsedToday} / {d.billing.limits.dailyLimit} updates used today</span>
+                      <span>{usagePercent}%</span>
+                    </div>
+                    <div className="h-2 bg-bg-light rounded-full overflow-hidden">
+                      <div
+                        className={cn("h-full rounded-full transition-all", usagePercent > 80 ? "bg-red-500" : "bg-primary")}
+                        style={{ width: `${usagePercent}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 bg-bg-light rounded-full overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full transition-all", usagePercent > 80 ? "bg-red-500" : "bg-primary")}
-                      style={{ width: `${usagePercent}%` }}
-                    />
+                )}
+                {d.billing.limits.unlimitedUpdates && (
+                  <div className="flex items-center gap-2 text-xs text-primary">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Unlimited updates · {d.billing.entriesUsedToday} logged today</span>
                   </div>
-                </div>
+                )}
               </div>
 
+              {/* Billing Cycle Toggle */}
+              {d.billing.plan !== "SCALE" && (
+                <div className="flex items-center justify-center gap-4">
+                  <span className={cn("text-sm font-medium transition-colors", !isAnnual ? "text-text-primary" : "text-muted-text")}>Monthly</span>
+                  <button
+                    onClick={() => setIsAnnual(!isAnnual)}
+                    className={cn(
+                      "relative w-14 h-7 rounded-full transition-colors duration-300",
+                      isAnnual ? "bg-primary" : "bg-gray-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-300",
+                      isAnnual && "translate-x-7"
+                    )} />
+                  </button>
+                  <span className={cn("text-sm font-medium transition-colors", isAnnual ? "text-text-primary" : "text-muted-text")}>
+                    Annual <span className="text-primary font-semibold text-xs ml-1">Save 20%</span>
+                  </span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
               <div className="flex gap-3">
                 {d.billing.plan === "FREE" ? (
                   <button
-                    onClick={handleUpgrade}
+                    onClick={() => handleUpgrade(selectedPlan, selectedPlan === "scale" ? scaleReps : undefined)}
                     disabled={actionLoading === "upgrade"}
                     className="px-5 py-2.5 rounded-full bg-primary hover:bg-primary-hover text-white font-semibold text-sm transition-all shadow-[0_4px_14px_0_rgba(79,124,255,0.39)] inline-flex items-center gap-2"
                   >
                     {actionLoading === "upgrade" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                    Upgrade to Pro — $79/mo
+                    {selectedPlan === "scale"
+                      ? `Upgrade to Scale — $${scaleReps * (isAnnual ? 23 : 29)}/mo`
+                      : `Upgrade to Pro — $${isAnnual ? 39 : 49}/mo`}
                   </button>
+                ) : d.billing.plan === "PRO" ? (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleUpgrade("scale", scaleReps)}
+                      disabled={actionLoading === "upgrade"}
+                      className="px-5 py-2.5 rounded-full bg-primary hover:bg-primary-hover text-white font-semibold text-sm transition-all shadow-[0_4px_14px_0_rgba(79,124,255,0.39)] inline-flex items-center gap-2"
+                    >
+                      {actionLoading === "upgrade" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      Upgrade to Scale — ${scaleReps * (isAnnual ? 23 : 29)}/mo
+                    </button>
+                    <button
+                      onClick={handleManageBilling}
+                      disabled={actionLoading === "portal"}
+                      className="px-5 py-2.5 rounded-full bg-white border border-border hover:bg-bg-light text-text-primary font-semibold text-sm transition-all inline-flex items-center gap-2"
+                    >
+                      {actionLoading === "portal" && <Loader2 className="w-4 h-4 animate-spin" />}
+                      Manage Subscription
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={handleManageBilling}
@@ -548,16 +626,139 @@ function SettingsPageInner() {
                 )}
               </div>
 
-              {d.billing.plan === "FREE" && (
-                <div className="p-4 bg-bg-light rounded-xl border border-border">
-                  <h3 className="text-sm font-bold text-text-primary mb-2">Pro Plan includes:</h3>
+              {/* Plan Cards */}
+              <div className="space-y-4">
+                {/* Free Plan */}
+                <div className={cn("p-4 rounded-xl border", d.billing.plan === "FREE" ? "bg-primary/5 border-primary/20" : "bg-bg-light border-border")}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-bold text-text-primary">Free Plan</h3>
+                    {d.billing.plan === "FREE" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Current</span>}
+                  </div>
+                  <div className="text-lg font-bold text-text-primary mb-1">$0<span className="text-xs text-muted-text font-normal">/mo</span></div>
+                  <p className="text-xs text-muted-text mb-2">For individuals getting started</p>
                   <ul className="space-y-1.5 text-sm text-muted-text">
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> 1,000 entries per month</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> 5 min max per voice note</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Priority AI processing</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> WhatsApp voice notes (coming soon)</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Email support</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Up to 3 reps</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> 10 updates/day per rep</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Core CRM sync</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> 1 integration</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Community support</li>
                   </ul>
+                </div>
+
+                {/* Pro Plan */}
+                <div
+                  className={cn(
+                    "p-4 rounded-xl border-2 cursor-pointer transition-all",
+                    d.billing.plan === "PRO" ? "bg-primary/5 border-primary shadow-sm" :
+                    (d.billing.plan === "FREE" && selectedPlan === "pro") ? "bg-white border-primary shadow-sm" :
+                    "bg-white border-border hover:border-primary/50"
+                  )}
+                  onClick={() => d.billing.plan === "FREE" && setSelectedPlan("pro")}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    {d.billing.plan === "FREE" && (
+                      <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center", selectedPlan === "pro" ? "border-primary" : "border-gray-300")}>
+                        {selectedPlan === "pro" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                      </div>
+                    )}
+                    <h3 className="text-sm font-bold text-text-primary">Pro Plan</h3>
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">Most Popular</span>
+                    {d.billing.plan === "PRO" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Current</span>}
+                  </div>
+                  <div className="flex items-baseline gap-1 mb-2">
+                    <span className="text-lg font-bold text-text-primary">${isAnnual ? 39 : 49}</span>
+                    <span className="text-xs text-muted-text">/mo{isAnnual ? " billed annually" : ""}</span>
+                    {isAnnual && <span className="text-xs text-muted-text line-through ml-1">$49/mo</span>}
+                  </div>
+                  <ul className="space-y-1.5 text-sm text-muted-text">
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Up to 10 reps</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Unlimited updates</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> All integrations</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Analytics dashboard</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Priority support</li>
+                  </ul>
+                </div>
+
+                {/* Scale Plan */}
+                <div
+                  className={cn(
+                    "p-4 rounded-xl border-2 cursor-pointer transition-all",
+                    d.billing.plan === "SCALE" ? "bg-primary/5 border-primary shadow-sm" :
+                    ((d.billing.plan === "FREE" || d.billing.plan === "PRO") && selectedPlan === "scale") ? "bg-white border-primary shadow-sm" :
+                    "bg-white border-border hover:border-primary/50"
+                  )}
+                  onClick={() => (d.billing.plan === "FREE" || d.billing.plan === "PRO") && setSelectedPlan("scale")}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    {(d.billing.plan === "FREE" || d.billing.plan === "PRO") && (
+                      <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center", selectedPlan === "scale" ? "border-primary" : "border-gray-300")}>
+                        {selectedPlan === "scale" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                      </div>
+                    )}
+                    <h3 className="text-sm font-bold text-text-primary">Scale Plan</h3>
+                    {d.billing.plan === "SCALE" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Current</span>}
+                  </div>
+                  <div className="flex items-baseline gap-1 mb-2">
+                    <span className="text-lg font-bold text-text-primary">${isAnnual ? 23 : 29}</span>
+                    <span className="text-xs text-muted-text">/rep/mo{isAnnual ? " billed annually" : ""}</span>
+                    {isAnnual && <span className="text-xs text-muted-text line-through ml-1">$29/rep/mo</span>}
+                  </div>
+                  <ul className="space-y-1.5 text-sm text-muted-text mb-3">
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Everything in Pro</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Dedicated account manager</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> SSO login</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Advanced analytics</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-primary" /> Custom onboarding & SLA</li>
+                  </ul>
+
+                  {/* Rep Count Selector */}
+                  {(selectedPlan === "scale" || d.billing.plan === "SCALE") && (
+                    <div className="pt-3 border-t border-border" onClick={(e) => e.stopPropagation()}>
+                      <label className="text-xs font-medium text-text-primary mb-2 block">Number of reps</label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setScaleReps(Math.max(11, scaleReps - 1))}
+                          className="w-8 h-8 rounded-lg border border-border hover:bg-bg-light flex items-center justify-center text-sm font-medium"
+                        >−</button>
+                        <input
+                          type="number"
+                          min={11}
+                          value={scaleReps}
+                          onChange={(e) => setScaleReps(Math.max(11, parseInt(e.target.value) || 11))}
+                          className="w-16 text-center bg-bg-light rounded-lg px-2 py-1.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                        <button
+                          onClick={() => setScaleReps(scaleReps + 1)}
+                          className="w-8 h-8 rounded-lg border border-border hover:bg-bg-light flex items-center justify-center text-sm font-medium"
+                        >+</button>
+                        <div className="flex-1 text-right">
+                          <span className="text-lg font-bold text-text-primary">${scaleReps * (isAnnual ? 23 : 29)}</span>
+                          <span className="text-xs text-muted-text">/mo{isAnnual ? " billed annually" : ""}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-text mt-1.5">For teams of 11+ reps. Minimum 11 reps.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Rep Limit Warning */}
+              {d.billing.plan === "FREE" && d.billing.repCount >= 3 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">Rep limit reached</p>
+                    <p className="text-xs text-amber-600">Your Free plan supports up to 3 reps. Upgrade to Pro for up to 10 reps.</p>
+                  </div>
+                </div>
+              )}
+              {d.billing.plan === "PRO" && d.billing.repCount >= 10 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">Rep limit reached</p>
+                    <p className="text-xs text-amber-600">Your Pro plan supports up to 10 reps. Upgrade to Scale for unlimited reps.</p>
+                  </div>
                 </div>
               )}
             </div>

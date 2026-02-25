@@ -1,10 +1,13 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { startOfDayEST, endOfDayEST, todayEST, daysAgoEST } from "@/lib/date-utils";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const days = parseInt(searchParams.get("days") || "30", 10);
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
+  const days = parseInt(searchParams.get("days") || "14", 10);
 
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -12,13 +15,22 @@ export async function GET(request: Request) {
 
   const dbUser = await prisma.user.findUnique({
     where: { email: user.email! },
-    include: { notionDatabaseConfig: true },
+    include: { notionDatabaseConfig: true, stripeCustomer: true },
   });
   if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const now = new Date();
-  const since = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
-  since.setHours(0, 0, 0, 0);
+  const userPlan = dbUser.stripeCustomer?.plan || "FREE";
+
+  let since: Date;
+  let until: Date;
+
+  if (fromParam && toParam) {
+    since = startOfDayEST(fromParam);
+    until = endOfDayEST(toParam);
+  } else {
+    since = startOfDayEST(daysAgoEST(days));
+    until = endOfDayEST(todayEST());
+  }
 
   const schema = dbUser.notionDatabaseConfig?.schemaSnapshotJson as any[] | null;
   const schemaKeys = (schema || []).map((col: any) => ({
@@ -33,7 +45,7 @@ export async function GET(request: Request) {
   );
 
   const entries = await prisma.voiceEntry.findMany({
-    where: { userId: dbUser.id, createdAt: { gte: since } },
+    where: { userId: dbUser.id, createdAt: { gte: since, lte: until } },
     select: {
       id: true,
       extractedJson: true,
@@ -148,6 +160,8 @@ export async function GET(request: Request) {
     totals,
     selectColumns: selectColumns.map((c) => ({ key: c.key, name: c.name, options: c.options })),
     stageBreakdowns,
-    days,
+    from: since.toISOString(),
+    to: until.toISOString(),
+    plan: userPlan,
   });
 }

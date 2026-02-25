@@ -49,6 +49,20 @@ function OnboardingPageInner() {
     if (urlStep) setCurrentStep(urlStep);
   }, [urlStep]);
 
+  const handleSkipOnboarding = async () => {
+    try {
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ onboardingComplete: true }),
+      });
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Skip onboarding error:", err);
+      router.push("/dashboard");
+    }
+  };
+
   const handleConnectNotion = () => {
     window.location.href = "/api/oauth/notion/start";
   };
@@ -250,6 +264,12 @@ function OnboardingPageInner() {
               >
                 Get Started <ChevronRight className="w-5 h-5" />
               </button>
+              <button
+                onClick={handleSkipOnboarding}
+                className="w-full py-3 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 font-medium text-sm transition-all"
+              >
+                Skip for now — I'll set up later
+              </button>
             </div>
           )}
 
@@ -329,8 +349,12 @@ function OnboardingPageInner() {
                         onClick={() => handleSelectDb(db)}
                         className="w-full flex items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 hover:border-primary/30 transition-all text-left"
                       >
-                        <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-lg">
-                          {db.icon || "📋"}
+                        <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-lg overflow-hidden">
+                          {db.icon && db.icon.startsWith("http") ? (
+                            <img src={db.icon} alt="" className="w-6 h-6 object-contain" />
+                          ) : (
+                            db.icon || "📋"
+                          )}
                         </div>
                         <div className="flex-1">
                           <p className="font-medium">{db.title}</p>

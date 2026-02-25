@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { nowEST, todayEST, toEST, startOfDayEST, endOfDayEST, daysAgoEST } from "@/lib/date-utils";
 
 export async function GET() {
   const supabase = await createServerSupabaseClient();
@@ -17,8 +18,9 @@ export async function GET() {
 
   if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const estNow = nowEST();
+  const estToday = todayEST();
+  const startOfMonth = startOfDayEST(`${estNow.getFullYear()}-${String(estNow.getMonth() + 1).padStart(2, "0")}-01`);
 
   const totalEntries = await prisma.voiceEntry.count({ where: { userId: dbUser.id } });
   const thisMonth = await prisma.voiceEntry.count({
@@ -31,10 +33,12 @@ export async function GET() {
     where: { userId: dbUser.id, status: "FAILED" },
   });
 
-  const dayOfWeek = now.getDay();
+  const dayOfWeek = estNow.getDay();
   const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset);
-  startOfWeek.setHours(0, 0, 0, 0);
+  const mondayDate = new Date(estNow);
+  mondayDate.setDate(estNow.getDate() - mondayOffset);
+  const mondayStr = `${mondayDate.getFullYear()}-${String(mondayDate.getMonth() + 1).padStart(2, "0")}-${String(mondayDate.getDate()).padStart(2, "0")}`;
+  const startOfWeek = startOfDayEST(mondayStr);
 
   const logsThisWeek = await prisma.voiceEntry.count({
     where: { userId: dbUser.id, createdAt: { gte: startOfWeek } },
@@ -68,20 +72,15 @@ export async function GET() {
 
   const timeSavedMins = totalEntries * 8;
 
-  const firstEntryForWindow = await prisma.voiceEntry.findFirst({
+  const firstEntry = await prisma.voiceEntry.findFirst({
     where: { userId: dbUser.id },
     orderBy: { createdAt: "asc" },
     select: { createdAt: true },
   });
-  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  todayMidnight.setHours(0, 0, 0, 0);
-  const minDate = firstEntryForWindow
-    ? new Date(firstEntryForWindow.createdAt.getFullYear(), firstEntryForWindow.createdAt.getMonth(), firstEntryForWindow.createdAt.getDate())
-    : todayMidnight;
-  minDate.setHours(0, 0, 0, 0);
-  const fourteenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14);
-  fourteenDaysAgo.setHours(0, 0, 0, 0);
-  const windowStart = minDate.getTime() > fourteenDaysAgo.getTime() ? minDate : fourteenDaysAgo;
+  const firstDateStr = firstEntry ? toEST(firstEntry.createdAt) : estToday;
+  const firstDate = startOfDayEST(firstDateStr);
+  const fourteenDaysAgo = startOfDayEST(daysAgoEST(14));
+  const windowStart = firstDate.getTime() > fourteenDaysAgo.getTime() ? firstDate : fourteenDaysAgo;
 
   const windowEntries = await prisma.voiceEntry.findMany({
     where: { userId: dbUser.id, createdAt: { gte: windowStart } },
@@ -92,12 +91,7 @@ export async function GET() {
     if (e.employeeId) repSet.add(e.employeeId);
   }
   const repCount = repSet.size;
-  const totalWindowLogs = windowEntries.length;
-  const avgTimeSavedPerRep = repCount > 0 ? Math.round((totalWindowLogs * 8) / repCount) : 0;
-
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  todayStart.setHours(0, 0, 0, 0);
-  const todayStr = todayStart.toISOString().slice(0, 10);
+  const avgTimeSavedPerRep = repCount > 0 ? Math.round((windowEntries.length * 8) / repCount) : 0;
 
   let followUpsDueToday = 0;
   for (const entry of allEntries) {
@@ -107,25 +101,13 @@ export async function GET() {
       if (!key.match(/follow.?up|next.?date|due.?date/i)) continue;
       const val = json[key]?.value ?? json[key];
       if (!val) continue;
-      if (String(val).slice(0, 10) === todayStr) { followUpsDueToday++; break; }
+      if (String(val).slice(0, 10) === estToday) { followUpsDueToday++; break; }
     }
   }
 
-  const firstEntry = await prisma.voiceEntry.findFirst({
-    where: { userId: dbUser.id },
-    orderBy: { createdAt: "asc" },
-    select: { createdAt: true },
-  });
-
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  today.setHours(0, 0, 0, 0);
-
-  const chartStartDate = firstEntry
-    ? new Date(firstEntry.createdAt.getFullYear(), firstEntry.createdAt.getMonth(), firstEntry.createdAt.getDate())
-    : today;
-  chartStartDate.setHours(0, 0, 0, 0);
-
-  const daySpan = Math.max(1, Math.floor((today.getTime() - chartStartDate.getTime()) / 86400000) + 1);
+  const chartStartDate = startOfDayEST(firstDateStr);
+  const todayDate = startOfDayEST(estToday);
+  const daySpan = Math.max(1, Math.floor((todayDate.getTime() - chartStartDate.getTime()) / 86400000) + 1);
 
   const chartEntries = await prisma.voiceEntry.findMany({
     where: { userId: dbUser.id, createdAt: { gte: chartStartDate } },
@@ -136,14 +118,13 @@ export async function GET() {
   let cumulative = 0;
 
   for (let i = 0; i < daySpan; i++) {
-    const d = new Date(chartStartDate);
-    d.setDate(d.getDate() + i);
-    const dateStr = d.toISOString().slice(0, 10);
-    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const d = new Date(chartStartDate.getTime() + i * 86400000);
+    const dateStr = toEST(d);
+    const label = new Date(`${dateStr}T12:00:00-05:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
     let dayLogs = 0;
     for (const e of chartEntries) {
-      if (e.createdAt.toISOString().slice(0, 10) === dateStr) dayLogs++;
+      if (toEST(e.createdAt) === dateStr) dayLogs++;
     }
     cumulative += dayLogs * 8;
     chartData.push({ date: dateStr, label, timeSaved: cumulative });

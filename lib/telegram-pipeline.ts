@@ -64,10 +64,18 @@ export async function processVoiceFromTelegram(
       data: { transcriptText: transcription.text, status: "EXTRACTING" },
     });
 
+    const todayEST = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const todayStr = todayEST.toISOString().split("T")[0];
+    const dayOfWeek = todayEST.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
+
     const fieldDescriptions = (schema || []).map((prop: any) => {
       const key = prop.name.toLowerCase().replace(/\s+/g, "_");
-      let desc = `"${key}": type=${prop.type}`;
-      if (prop.options?.length) desc += ` (options: ${prop.options.join(", ")})`;
+      let desc = `- "${key}" (type: ${prop.type})`;
+      if (prop.options?.length) desc += ` — allowed values: [${prop.options.join(", ")}]`;
+      if (prop.type === "date") {
+        if (key.match(/call|meeting|entry|log/i)) desc += ` — this is the date the call/meeting happened`;
+        if (key.match(/follow|next|due|action/i)) desc += ` — this is a future follow-up/action date`;
+      }
       return desc;
     });
 
@@ -76,35 +84,60 @@ export async function processVoiceFromTelegram(
       return `  "${key}": {"value": "extracted value or empty string", "confidence": 0.0}`;
     });
 
-    const prompt = `You are an AI that extracts structured data from voice transcripts into CRM/database fields.
+    const systemPrompt = `You are an expert CRM data extraction AI. Your job is to listen to sales rep voice notes and extract structured data into specific database fields.
 
-Given this transcript:
+You are precise, thorough, and never miss follow-up dates or action items. You pay special attention to:
+1. Temporal references ("next week", "follow up Friday", "call back in 3 days", "end of month")
+2. Deal stages and pipeline status
+3. Contact names and account information
+4. Objections, blockers, and next steps
+
+TODAY is ${todayStr} (${dayOfWeek}), Eastern Time.`;
+
+    const userPrompt = `Extract structured CRM data from this voice transcript.
+
+TRANSCRIPT:
 """
 ${transcription.text}
 """
 
-Database fields to extract:
+DATABASE FIELDS TO EXTRACT:
 ${fieldDescriptions.join("\n")}
 
-Extract structured fields. For each field, provide a value and a confidence score (0.0-1.0).
+CRITICAL DATE RULES:
+- Today is ${todayStr} (${dayOfWeek})
+- Any field about when the call/meeting happened (call_date, meeting_date, entry_date, log_date, date): ALWAYS set to "${todayStr}" with confidence 1.0
+- Any field about follow-up/next action dates: carefully parse temporal references:
+  • "tomorrow" → add 1 day to today
+  • "next week" → add 7 days to today
+  • "in X days" → add X days to today
+  • "next Monday/Tuesday/etc" → calculate the next occurrence of that weekday from today
+  • "end of month" → last day of the current month
+  • "follow up Friday" → the next Friday from today
+  • "in a couple weeks" → add 14 days
+  • "next month" → 1st of next month
+  • If the transcript mentions ANY timing for follow-up but is vague (e.g., "I'll follow up", "need to check back"), set to 7 days from today with confidence 0.5
+  • If NO follow-up timing is mentioned at all, set value to "" and confidence to 0
 
-Respond ONLY with valid JSON in this exact format:
+EXTRACTION RULES:
+- For select fields: value MUST exactly match one of the allowed values listed
+- For date fields: use ISO format YYYY-MM-DD
+- For text/rich_text fields: be concise (1-2 sentences max), capture the key information
+- For title fields: use account name, contact name, or a brief meeting summary
+- Confidence score (0.0-1.0): how clearly the information was stated. Explicit mention = 0.8-1.0, inferred = 0.4-0.7, default/assumed = 0.1-0.3
+
+Respond ONLY with valid JSON:
 {
 ${fieldKeys.join(",\n")}
-}
-
-Rules:
-- If a field is not mentioned in the transcript, set value to "" and confidence to 0
-- For select fields, the value must match one of the allowed options exactly
-- For date fields, use ISO format (YYYY-MM-DD)
-- For title/text fields, extract the most relevant information
-- Confidence reflects how clearly the information was stated in the transcript
-- Be concise for text fields (1-2 sentences max)`;
+}`;
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        { role: "user", content: userPrompt },
+      ],
+      system: systemPrompt,
     });
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
@@ -212,7 +245,6 @@ Rules:
 
     const summaryParts = Object.entries(fields)
       .filter(([_, v]) => v)
-      .slice(0, 4)
       .map(([k, v]) => `• ${k.replace(/_/g, " ")}: ${v}`);
 
     return {

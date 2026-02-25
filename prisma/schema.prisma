@@ -23,6 +23,7 @@ enum VoiceEntryStatus {
 enum Plan {
   FREE
   PRO
+  SCALE
 }
 
 enum UsageType {

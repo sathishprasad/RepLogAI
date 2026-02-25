@@ -3,7 +3,40 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-bg-light text-text-primary;
   }
+}
+
+@keyframes subtle-pulse {
+  0%, 100% { box-shadow: 0 4px 14px 0 rgba(79,124,255,0.39); }
+  50% { box-shadow: 0 6px 24px 0 rgba(79,124,255,0.55); }
+}
+
+.animate-subtle-pulse {
+  animation: subtle-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+@keyframes spin-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes spin-orbit-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
 }

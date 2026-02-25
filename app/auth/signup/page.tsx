@@ -21,28 +21,9 @@ export default function SignUpPage() {
     });
   };
 
-  const handleEmailSignUp = async (name: string, email: string, password: string) => {
-    if (!supabase) {
-      router.push("/dashboard");
-      return;
-    }
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: name },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) {
-      console.error("Signup error:", error.message);
-    }
-  };
-
   return (
     <SignUp1
       onGithubSignUp={handleGithubSignUp}
-      onEmailSignUp={handleEmailSignUp}
     />
   );
 }
