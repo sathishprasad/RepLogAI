@@ -30,8 +30,8 @@ export function Topbar() {
   }, []);
 
   const handleSignOut = async () => {
-    if (supabase) await supabase.auth.signOut();
-    router.push("/");
+    if (supabase) await supabase.auth.signOut({ scope: "global" });
+    router.push("/auth");
   };
 
   const initial = user?.user_metadata?.full_name?.[0] || user?.email?.[0] || "U";

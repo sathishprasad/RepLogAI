@@ -56,9 +56,17 @@ function SettingsPageInner() {
   const [scaleReps, setScaleReps] = useState(11);
   const [selectedPlan, setSelectedPlan] = useState<"pro" | "scale">("pro");
   const [isAnnual, setIsAnnual] = useState(true);
+  const [showDbSetup, setShowDbSetup] = useState(false);
+  const [dbSetupStep, setDbSetupStep] = useState<"database" | "schema">("database");
+  const [databases, setDatabases] = useState<{ id: string; title: string; icon: string | null; lastEditedTime: string }[]>([]);
+  const [selectedDb, setSelectedDb] = useState<{ id: string; title: string } | null>(null);
+  const [schema, setSchema] = useState<{ name: string; type: string; options?: string[]; fillable: boolean }[]>([]);
+  const [dbSearch, setDbSearch] = useState("");
+  const [dbLoading, setDbLoading] = useState(false);
 
   const billingStatus = searchParams.get("billing");
   const reconnected = searchParams.get("reconnected");
+  const setupParam = searchParams.get("setup");
 
   useEffect(() => {
     if (activeSection === "telegram" || activeSection === "employees") fetchEmployees();
@@ -72,8 +80,62 @@ function SettingsPageInner() {
     if (reconnected === "true") {
       setToast({ type: "success", message: "✅ Notion reconnected successfully!" });
       setActiveSection("notion");
+      if (setupParam === "database") {
+        setShowDbSetup(true);
+        setDbSetupStep("database");
+        fetchDatabases();
+      }
     }
-  }, [billingStatus, reconnected]);
+  }, [billingStatus, reconnected, setupParam]);
+
+  const fetchDatabases = async () => {
+    setDbLoading(true);
+    try {
+      const res = await fetch("/api/notion/databases");
+      const data = await res.json();
+      setDatabases(data.databases || []);
+    } catch { }
+    finally { setDbLoading(false); }
+  };
+
+  const fetchDbSchema = async (dbId: string) => {
+    setDbLoading(true);
+    try {
+      const res = await fetch(`/api/notion/schema?databaseId=${dbId}`);
+      const data = await res.json();
+      setSchema((data.properties || []).map((p: any) => ({ ...p, fillable: true })));
+    } catch { }
+    finally { setDbLoading(false); }
+  };
+
+  const handleSelectDatabase = (db: { id: string; title: string }) => {
+    setSelectedDb(db);
+    fetchDbSchema(db.id);
+    setDbSetupStep("schema");
+  };
+
+  const handleSaveDbMapping = async () => {
+    if (!selectedDb) return;
+    setDbLoading(true);
+    try {
+      await fetch("/api/notion/schema", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          databaseId: selectedDb.id,
+          databaseName: selectedDb.title,
+          schema: schema.filter((s) => s.fillable),
+          mapping: Object.fromEntries(
+            schema.filter((s) => s.fillable).map((s) => [s.name.toLowerCase().replace(/\s+/g, "_"), s.name])
+          ),
+        }),
+      });
+      setShowDbSetup(false);
+      showToast("success", "Database configured successfully!");
+      window.location.reload();
+    } catch { showToast("error", "Failed to save database mapping"); }
+    finally { setDbLoading(false); }
+  };
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -104,12 +166,12 @@ function SettingsPageInner() {
   };
 
   const handleDisconnectNotion = async () => {
-    if (!confirm("Disconnect Notion? This will remove your database mapping and you'll need to re-onboard.")) return;
+    if (!confirm("Disconnect Notion? This will remove your database mapping. You can reconnect anytime.")) return;
     setActionLoading("disconnect-notion");
     try {
       await fetch("/api/settings/notion/disconnect", { method: "POST" });
       showToast("success", "Notion disconnected");
-      router.push("/onboarding");
+      window.location.reload();
     } catch { showToast("error", "Failed to disconnect"); }
     finally { setActionLoading(""); }
   };
@@ -450,6 +512,36 @@ function SettingsPageInner() {
                       <RefreshCw className="w-3.5 h-3.5" /> Reconnect
                     </button>
                   </div>
+                  {!d.database.configured && (
+                    <div className="flex items-center gap-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                      <AlertTriangle className="w-5 h-5 text-amber-600" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-amber-800">No database configured</p>
+                        <p className="text-xs text-amber-600">Select a Notion database for RepLog to write to</p>
+                      </div>
+                      <button
+                        onClick={() => { setShowDbSetup(true); setDbSetupStep("database"); fetchDatabases(); }}
+                        className="px-4 py-2 rounded-full bg-primary text-white text-sm font-medium"
+                      >
+                        Configure
+                      </button>
+                    </div>
+                  )}
+                  {d.database.configured && (
+                    <div className="flex items-center gap-4 p-4 bg-gray-50 border border-border rounded-xl">
+                      <Database className="w-5 h-5 text-primary" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-text-primary">{d.database.databaseName}</p>
+                        <p className="text-xs text-muted-text">{d.database.columns?.filter(c => c.fillable).length} columns mapped</p>
+                      </div>
+                      <button
+                        onClick={() => { setShowDbSetup(true); setDbSetupStep("database"); fetchDatabases(); }}
+                        className="text-sm text-primary hover:text-primary/80 font-medium"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
                   <button
                     onClick={handleDisconnectNotion}
                     disabled={actionLoading === "disconnect-notion"}
@@ -817,6 +909,96 @@ function SettingsPageInner() {
           )}
         </div>
       </div>
+
+      {showDbSetup && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-border w-full max-w-lg max-h-[80vh] overflow-y-auto p-6 space-y-5">
+            {dbSetupStep === "database" ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-text-primary">Select Database</h2>
+                  <button onClick={() => setShowDbSetup(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+                </div>
+                <p className="text-sm text-muted-text">Choose which Notion database RepLog should write to.</p>
+                <input
+                  type="text"
+                  placeholder="Search databases..."
+                  value={dbSearch}
+                  onChange={(e) => setDbSearch(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                {dbLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {databases.filter((db) => db.title.toLowerCase().includes(dbSearch.toLowerCase())).map((db) => (
+                      <button
+                        key={db.id}
+                        onClick={() => handleSelectDatabase(db)}
+                        className="w-full flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-xl border border-border hover:border-primary/30 transition-all text-left"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-sm">
+                          {db.icon && db.icon.startsWith("http") ? <img src={db.icon} alt="" className="w-5 h-5 object-contain" /> : (db.icon || "📋")}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-text-primary">{db.title}</p>
+                          <p className="text-xs text-muted-text">Last edited: {new Date(db.lastEditedTime).toLocaleDateString()}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-text-primary">Review Columns</h2>
+                  <button onClick={() => setShowDbSetup(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+                </div>
+                <p className="text-sm text-muted-text">Toggle which columns RepLog can fill from voice notes.</p>
+                {selectedDb && (
+                  <div className="flex items-center gap-2 p-2.5 bg-primary/5 rounded-xl border border-primary/10">
+                    <Database className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-text-primary">{selectedDb.title}</span>
+                    <button onClick={() => setDbSetupStep("database")} className="ml-auto text-xs text-primary hover:underline">Change</button>
+                  </div>
+                )}
+                {dbLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {schema.map((prop, i) => (
+                      <div key={prop.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-border">
+                        <div>
+                          <p className="text-sm font-medium text-text-primary">{prop.name}</p>
+                          <p className="text-xs text-muted-text">{prop.type}{prop.options ? ` (${prop.options.length} options)` : ""}</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={prop.fillable}
+                            onChange={() => { const u = [...schema]; u[i] = { ...u[i], fillable: !u[i].fillable }; setSchema(u); }}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-gray-300 peer-checked:bg-primary rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={handleSaveDbMapping}
+                  disabled={dbLoading}
+                  className="w-full py-3 rounded-full bg-primary hover:bg-primary/90 text-white font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {dbLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                  Save Configuration
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

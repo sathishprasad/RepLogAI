@@ -13,10 +13,6 @@ export async function POST() {
 
   await prisma.notionDatabaseConfig.deleteMany({ where: { userId: dbUser.id } });
   await prisma.notionConnection.deleteMany({ where: { userId: dbUser.id } });
-  await prisma.user.update({
-    where: { id: dbUser.id },
-    data: { onboardingComplete: false },
-  });
 
   return NextResponse.json({ success: true });
 }

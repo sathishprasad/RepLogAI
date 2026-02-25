@@ -68,7 +68,7 @@ export async function GET(request: Request) {
 
     const freshUser = await prisma.user.findUnique({ where: { id: dbUser.id } });
     if (freshUser?.onboardingComplete || freshUser?.companyCode) {
-      return NextResponse.redirect(new URL("/dashboard/settings?reconnected=true", process.env.NEXT_PUBLIC_APP_URL!));
+      return NextResponse.redirect(new URL("/dashboard/settings?reconnected=true&setup=database", process.env.NEXT_PUBLIC_APP_URL!));
     }
 
     return NextResponse.redirect(new URL("/onboarding?step=database", process.env.NEXT_PUBLIC_APP_URL!));
