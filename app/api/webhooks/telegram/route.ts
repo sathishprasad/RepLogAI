@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendMessage, getFile, downloadFile } from "@/lib/telegram";
 import { processVoiceFromTelegram } from "@/lib/telegram-pipeline";
+export const dynamic = 'force-dynamic';
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 

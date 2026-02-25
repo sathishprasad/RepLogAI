@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+export const dynamic = 'force-dynamic';
 
 function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);

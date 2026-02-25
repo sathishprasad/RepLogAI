@@ -3,6 +3,7 @@ import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { checkUsageLimits, trackUsage } from "@/lib/usage";
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {

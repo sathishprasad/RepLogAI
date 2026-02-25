@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/encryption";
 import { NextResponse } from "next/server";
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {

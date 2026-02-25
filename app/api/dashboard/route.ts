@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { nowEST, todayEST, toEST, startOfDayEST, endOfDayEST, daysAgoEST } from "@/lib/date-utils";
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const supabase = await createServerSupabaseClient();

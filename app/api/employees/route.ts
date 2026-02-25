@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+export const dynamic = 'force-dynamic';
 
 async function getAdmin() {
   const supabase = await createServerSupabaseClient();

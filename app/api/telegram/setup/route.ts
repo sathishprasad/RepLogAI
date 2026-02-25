@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { setWebhook, deleteWebhook, getMe } from "@/lib/telegram";
+export const dynamic = 'force-dynamic';
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 
