@@ -9,9 +9,10 @@ export async function GET() {
 
   const state = Buffer.from(JSON.stringify({ userId: user.id, ts: Date.now() })).toString("base64url");
 
+  const redirectUri = process.env.NOTION_REDIRECT_URI || `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/notion/callback`;
   const params = new URLSearchParams({
     client_id: process.env.NOTION_CLIENT_ID!,
-    redirect_uri: process.env.NOTION_REDIRECT_URI!,
+    redirect_uri: redirectUri,
     response_type: "code",
     owner: "user",
     state,

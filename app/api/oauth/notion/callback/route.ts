@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       body: JSON.stringify({
         grant_type: "authorization_code",
         code,
-        redirect_uri: process.env.NOTION_REDIRECT_URI,
+        redirect_uri: process.env.NOTION_REDIRECT_URI || `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/notion/callback`,
       }),
     });
 
