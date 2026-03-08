@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { OverviewCards } from "@/components/dashboard/overview-cards";
-import { ArrowRight, Clock, CheckCircle2, XCircle, FileAudio, AlertTriangle, Loader2, Bot, Copy, Check, Users } from "lucide-react";
+import { ArrowRight, Clock, CheckCircle2, XCircle, FileAudio, AlertTriangle, Loader2, Bot, Copy, Check, Users, Mic } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -99,6 +99,11 @@ export default function DashboardPage() {
   const router = useRouter();
   const { data, loading, error } = useCachedFetch<DashboardData>("/api/dashboard");
   const [copied, setCopied] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
+
+  useEffect(() => {
+    setIsDemo(document.cookie.includes("replog-demo-mode=true"));
+  }, []);
 
   useEffect(() => {
     if (data && !data.onboardingComplete) router.push("/onboarding");
@@ -141,15 +146,26 @@ export default function DashboardPage() {
               : "Your voice-to-CRM command center"}
           </p>
         </div>
-        {deepLink && (
-          <button
-            onClick={() => { navigator.clipboard.writeText(deepLink); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white rounded-full px-6 py-3 font-semibold transition-all shadow-[0_4px_14px_0_rgba(79,124,255,0.39)]"
-          >
-            {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-            {copied ? "Copied!" : "Copy Bot Link"}
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {isDemo && (
+            <Link
+              href="/dashboard/capture"
+              className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white rounded-full px-6 py-3 font-semibold transition-all shadow-[0_4px_14px_0_rgba(79,124,255,0.39)]"
+            >
+              <Mic className="w-5 h-5" />
+              Record Voice Note
+            </Link>
+          )}
+          {deepLink && (
+            <button
+              onClick={() => { navigator.clipboard.writeText(deepLink); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white rounded-full px-6 py-3 font-semibold transition-all shadow-[0_4px_14px_0_rgba(79,124,255,0.39)]"
+            >
+              {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+              {copied ? "Copied!" : "Copy Bot Link"}
+            </button>
+          )}
+        </div>
       </div>
 
       {!data.hasNotion && (
