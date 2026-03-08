@@ -25,6 +25,11 @@ export default function IntegrationsPage() {
   const [notionConnected, setNotionConnected] = useState<boolean | null>(null);
   const [notionWorkspace, setNotionWorkspace] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
+
+  useEffect(() => {
+    setIsDemo(document.cookie.includes("replog-demo-mode=true"));
+  }, []);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -132,19 +137,29 @@ export default function IntegrationsPage() {
                     <CheckCircle2 className="w-4 h-4" />
                     {notionWorkspace || "Active"}
                   </span>
-                  <button
-                    onClick={() => router.push("/dashboard/settings")}
-                    className="text-sm text-primary hover:text-primary-hover font-medium inline-flex items-center gap-1"
-                  >
-                    Manage <ExternalLink className="w-3.5 h-3.5" />
-                  </button>
+                  {isDemo ? (
+                    <span className="text-xs text-muted-text bg-bg-light px-3 py-1.5 rounded-full border border-border">
+                      Pre-configured for demo
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => router.push("/dashboard/settings")}
+                      className="text-sm text-primary hover:text-primary-hover font-medium inline-flex items-center gap-1"
+                    >
+                      Manage <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               ) : integration.name === "Notion" && integration.status === "not_connected" ? (
                 <button
-                  onClick={() => window.location.href = "/api/oauth/notion/start"}
-                  className="px-4 py-2 rounded-full bg-primary text-white text-sm font-semibold"
+                  onClick={() => !isDemo && (window.location.href = "/api/oauth/notion/start")}
+                  disabled={isDemo}
+                  className={cn(
+                    "px-4 py-2 rounded-full text-sm font-semibold",
+                    isDemo ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-primary text-white"
+                  )}
                 >
-                  Connect Notion
+                  {isDemo ? "Pre-configured" : "Connect Notion"}
                 </button>
               ) : integration.status === "in_progress" ? (
                 <div className="flex items-center gap-2">

@@ -48,7 +48,7 @@ export async function getOrCreateDemoUser() {
         email: DEMO_USER_EMAIL,
         name: "Demo User",
         companyName: "Acme Sales Corp",
-        companyCode: "DEMO2024",
+        companyCode: "DEMO2026",
         onboardingComplete: true,
       },
     });

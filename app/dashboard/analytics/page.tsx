@@ -172,8 +172,11 @@ export default function AnalyticsPage() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Analytics</h1>
-          <p className="text-muted-text mt-1">Rep performance and pipeline breakdown</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-text-primary">Analytics</h1>
+            <span className="px-2.5 py-1 text-xs font-bold bg-gradient-to-r from-primary to-purple-500 text-white rounded-full">PRO</span>
+          </div>
+          <p className="text-muted-text mt-1">Rep performance and pipeline breakdown — included with Pro & Scale plans</p>
         </div>
         <p className="text-sm text-muted-text mt-1">{dateLabel}</p>
       </div>
