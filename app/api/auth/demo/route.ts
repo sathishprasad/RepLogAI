@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
-import { getOrCreateDemoUser, DEMO_COOKIE, DEMO_USER_EMAIL } from "@/lib/demo";
+import { createDemoUser, DEMO_COOKIE, DEMO_EMAIL_SUFFIX, deleteDemoUser } from "@/lib/demo";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    const demoUser = await getOrCreateDemoUser();
+    // If user already has a demo session, clean up their old demo user
+    const existingDemoCookie = request.headers.get("cookie")?.match(/replog-demo-session=([^;]+)/)?.[1];
+    if (existingDemoCookie) {
+      const existingUser = await prisma.user.findUnique({ where: { id: existingDemoCookie } });
+      if (existingUser?.email.endsWith(DEMO_EMAIL_SUFFIX)) {
+        await deleteDemoUser(existingUser.id);
+      }
+    }
 
-    // Clean up any real recordings from previous demo sessions
-    // (keep seeded entries which have no audioStoragePath)
-    await prisma.voiceEntry.deleteMany({
-      where: {
-        userId: demoUser.id,
-        audioStoragePath: { not: null },
-      },
-    });
+    // Create a fresh isolated demo user
+    const demoUser = await createDemoUser();
 
     const response = NextResponse.json({
       success: true,
@@ -27,7 +28,7 @@ export async function POST() {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 24,
       path: "/",
     });
 

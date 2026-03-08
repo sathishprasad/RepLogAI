@@ -11,7 +11,11 @@ export function DemoBanner() {
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
-    setIsDemo(document.cookie.includes("replog-demo-mode=true"));
+    // Only show demo banner if demo cookie exists AND no Supabase session
+    // (if user signs up after demo, Supabase cookie takes priority)
+    const hasDemo = document.cookie.includes("replog-demo-mode=true");
+    const hasSupabase = document.cookie.includes("sb-");
+    setIsDemo(hasDemo && !hasSupabase);
   }, []);
 
   const handleReset = async () => {
