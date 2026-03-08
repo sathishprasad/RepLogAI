@@ -54,14 +54,6 @@ export function DemoBanner() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleReset}
-            disabled={resetting}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-text hover:text-text-primary px-2.5 py-1.5 rounded-lg hover:bg-white/50 transition-colors disabled:opacity-50"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${resetting ? "animate-spin" : ""}`} />
-            {resetting ? "Resetting..." : "Reset Demo"}
-          </button>
-          <button
             onClick={() => setDismissed(true)}
             className="text-muted-text hover:text-text-primary p-1 rounded-lg hover:bg-white/50 transition-colors flex-shrink-0"
           >
