@@ -103,82 +103,105 @@ export async function getOrCreateDemoUser() {
       });
     }
 
-    // Seed sample voice entries with today's dates for follow-ups
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-    const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0];
-
-    const sampleEntries = [
-      {
-        status: "SYNCED" as const,
-        meetingType: "Call",
-        audioDurationSecs: 45,
-        transcriptText: "Had a great call with Acme Corp. They're interested in the enterprise plan. Follow up scheduled for today to discuss pricing.",
-        extractedJson: {
-          contact_name: { value: "Jane Smith", confidence: 0.95 },
-          account_number: { value: "ACME-2024", confidence: 0.9 },
-          meeting_date: { value: today, confidence: 1.0 },
-          meeting_notes: { value: "Discussed enterprise plan pricing. Very interested, needs budget approval.", confidence: 0.88 },
-          stage: { value: "Negotiation", confidence: 0.92 },
-          next_steps: { value: "Send pricing proposal by EOD", confidence: 0.85 },
-          "follow-up_date": { value: today, confidence: 0.9 },
-        },
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      },
-      {
-        status: "SYNCED" as const,
-        meetingType: "In-person",
-        audioDurationSecs: 72,
-        transcriptText: "Met with TechStart Inc at their office. Demo went well, they want a pilot program. Follow up today to send the pilot agreement.",
-        extractedJson: {
-          contact_name: { value: "Mike Chen", confidence: 0.93 },
-          account_number: { value: "TS-1001", confidence: 0.87 },
-          meeting_date: { value: yesterday, confidence: 1.0 },
-          meeting_notes: { value: "On-site demo of full platform. CTO was impressed with AI extraction accuracy.", confidence: 0.91 },
-          stage: { value: "Proposal", confidence: 0.88 },
-          next_steps: { value: "Send pilot agreement and SOW", confidence: 0.86 },
-          "follow-up_date": { value: today, confidence: 0.92 },
-        },
-        createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000), // yesterday
-      },
-      {
-        status: "SYNCED" as const,
-        meetingType: "Demo",
-        audioDurationSecs: 38,
-        transcriptText: "Quick check-in with GlobalTrade. They renewed for another year. Very happy with the product. No follow-up needed.",
-        extractedJson: {
-          contact_name: { value: "Sarah Lee", confidence: 0.96 },
-          account_number: { value: "GT-500", confidence: 0.91 },
-          meeting_date: { value: twoDaysAgo, confidence: 1.0 },
-          meeting_notes: { value: "Annual renewal confirmed. Customer satisfaction is high. Exploring upsell for Q2.", confidence: 0.89 },
-          stage: { value: "Closed Won", confidence: 0.97 },
-          next_steps: { value: "Quarterly review in 90 days", confidence: 0.84 },
-          "follow-up_date": { value: "", confidence: 0 },
-        },
-        createdAt: new Date(Date.now() - 50 * 60 * 60 * 1000), // 2 days ago
-      },
-    ];
-
+    // Seed 50+ sample voice entries spread over 14 days
+    const today = new Date().toISOString().split("T")[0];
     const employees = await prisma.employee.findMany({ where: { adminId: demoUser.id } });
 
-    for (let i = 0; i < sampleEntries.length; i++) {
-      const entry = sampleEntries[i];
-      await prisma.voiceEntry.create({
-        data: {
-          userId: demoUser.id,
-          employeeId: employees[i]?.id,
-          databaseId: sourceDbConfig?.databaseId || "demo",
-          audioDurationSecs: entry.audioDurationSecs,
-          transcriptText: entry.transcriptText,
-          extractedJson: entry.extractedJson,
-          finalJson: entry.extractedJson,
-          meetingType: entry.meetingType,
-          status: entry.status,
-          source: "WEB",
-          createdAt: entry.createdAt,
-        },
-      });
+    const contacts = [
+      { name: "Jane Smith", account: "ACME-2024", company: "Acme Corp" },
+      { name: "Mike Chen", account: "TS-1001", company: "TechStart Inc" },
+      { name: "Sarah Lee", account: "GT-500", company: "GlobalTrade" },
+      { name: "David Park", account: "NX-300", company: "NexGen Solutions" },
+      { name: "Emily Rodriguez", account: "CP-750", company: "CloudPeak" },
+      { name: "James Wilson", account: "BV-220", company: "BlueVista" },
+      { name: "Lisa Chang", account: "MF-410", company: "MetaForge" },
+      { name: "Tom Harris", account: "SR-600", company: "SkyRail" },
+      { name: "Anna Kumar", account: "DW-880", company: "DataWave" },
+      { name: "Ryan Brooks", account: "FP-150", company: "FrostPeak" },
+    ];
+
+    const stages = ["Lead", "Qualified", "Proposal", "Negotiation", "Closed Won", "Closed Lost"];
+    const meetingTypes = ["Call", "In-person", "Demo"];
+    const noteTemplates = [
+      "Discussed pricing and timeline. Client is very interested in the enterprise plan.",
+      "Initial discovery call. Identified pain points around manual CRM entry and data quality.",
+      "Product demo went well. CTO was impressed with voice-to-CRM accuracy.",
+      "Follow-up after proposal. They want to negotiate on the annual contract terms.",
+      "Quick check-in. Customer is happy, exploring upsell opportunities for Q2.",
+      "Renewal discussion. They confirmed renewal for another year.",
+      "Cold outreach turned warm. They agreed to a full demo next week.",
+      "Objection handling session. Addressed concerns about data privacy and security.",
+      "Contract review meeting. Legal team had minor comments, otherwise ready to sign.",
+      "Quarterly business review. Usage is up 40%, very satisfied with ROI.",
+    ];
+    const nextStepTemplates = [
+      "Send pricing proposal by EOD",
+      "Schedule follow-up demo with technical team",
+      "Send pilot agreement and SOW",
+      "Set up onboarding call for next week",
+      "Share case study and ROI calculator",
+      "Quarterly review in 90 days",
+      "Send contract for signature",
+      "Follow up on legal review comments",
+      "Schedule executive sponsor meeting",
+      "Prepare custom integration proposal",
+    ];
+
+    const entryPromises = [];
+    for (let i = 0; i < 55; i++) {
+      const daysAgo = Math.floor(Math.random() * 14);
+      const hoursAgo = Math.floor(Math.random() * 24);
+      const createdAt = new Date(Date.now() - (daysAgo * 24 + hoursAgo) * 60 * 60 * 1000);
+      const meetingDate = new Date(Date.now() - daysAgo * 86400000).toISOString().split("T")[0];
+      const contact = contacts[i % contacts.length];
+      const stage = stages[Math.floor(Math.random() * stages.length)];
+      const meetingType = meetingTypes[Math.floor(Math.random() * meetingTypes.length)];
+      const employee = employees[i % employees.length];
+      const note = noteTemplates[i % noteTemplates.length];
+      const nextStep = nextStepTemplates[i % nextStepTemplates.length];
+
+      // ~40% of entries have follow-ups due today
+      const hasFollowUpToday = Math.random() < 0.4;
+      const followUpDaysFromNow = hasFollowUpToday ? 0 : Math.floor(Math.random() * 7) + 1;
+      const followUpDate = new Date(Date.now() + followUpDaysFromNow * 86400000).toISOString().split("T")[0];
+
+      const duration = 20 + Math.floor(Math.random() * 70); // 20-90 seconds
+
+      entryPromises.push(
+        prisma.voiceEntry.create({
+          data: {
+            userId: demoUser.id,
+            employeeId: employee?.id,
+            databaseId: sourceDbConfig?.databaseId || "demo",
+            audioDurationSecs: duration,
+            transcriptText: `${meetingType} with ${contact.company}. ${note} Next step: ${nextStep}.`,
+            extractedJson: {
+              contact_name: { value: contact.name, confidence: 0.9 + Math.random() * 0.1 },
+              account_number: { value: contact.account, confidence: 0.85 + Math.random() * 0.1 },
+              meeting_date: { value: meetingDate, confidence: 1.0 },
+              meeting_notes: { value: note, confidence: 0.8 + Math.random() * 0.15 },
+              stage: { value: stage, confidence: 0.8 + Math.random() * 0.2 },
+              next_steps: { value: nextStep, confidence: 0.75 + Math.random() * 0.2 },
+              "follow-up_date": { value: stage === "Closed Won" || stage === "Closed Lost" ? "" : followUpDate, confidence: stage === "Closed Won" || stage === "Closed Lost" ? 0 : 0.85 },
+            },
+            finalJson: {
+              contact_name: contact.name,
+              account_number: contact.account,
+              meeting_date: meetingDate,
+              meeting_notes: note,
+              stage: stage,
+              next_steps: nextStep,
+              "follow-up_date": stage === "Closed Won" || stage === "Closed Lost" ? "" : followUpDate,
+            },
+            meetingType: meetingType,
+            status: "SYNCED",
+            source: i % 3 === 0 ? "TELEGRAM" : "WEB",
+            createdAt,
+          },
+        })
+      );
     }
+    await Promise.all(entryPromises);
   }
 
   return demoUser;

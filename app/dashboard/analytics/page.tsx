@@ -136,7 +136,9 @@ export default function AnalyticsPage() {
   if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>;
   if (!data) return null;
 
-  const isFree = data.plan === "FREE";
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => { setIsDemo(document.cookie.includes("replog-demo-mode=true")); }, []);
+  const isFree = data.plan === "FREE" && !isDemo;
 
   const stageKPIs: { colName: string; option: string; count: number; total: number; color: string }[] = [];
   const kpiColors = [

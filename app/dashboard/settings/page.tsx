@@ -46,6 +46,11 @@ function SettingsPageInner() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
+
+  useEffect(() => {
+    setIsDemo(document.cookie.includes("replog-demo-mode=true"));
+  }, []);
   const [name, setName] = useState("");
   const [actionLoading, setActionLoading] = useState("");
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -494,7 +499,15 @@ function SettingsPageInner() {
           {activeSection === "notion" && (
             <div className="bg-white rounded-2xl border border-border p-6 space-y-6">
               <h2 className="text-lg font-bold text-text-primary text-left">Manage Integrations</h2>
-              {d.notion.connected ? (
+              {isDemo ? (
+                <div className="flex items-center gap-4 p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                  <CheckCircle2 className="w-6 h-6 text-primary" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-text-primary">Notion is pre-configured for this demo</p>
+                    <p className="text-xs text-muted-text">Connected to the shared CRM Contacts database. Sign up for a free account to connect your own Notion workspace.</p>
+                  </div>
+                </div>
+              ) : d.notion.connected ? (
                 <>
                   <div className="flex items-center gap-4 p-4 bg-green-50 border border-green-200 rounded-xl">
                     <CheckCircle2 className="w-6 h-6 text-green-600" />
@@ -572,7 +585,15 @@ function SettingsPageInner() {
           {activeSection === "mapping" && (
             <div className="bg-white rounded-2xl border border-border p-6 space-y-6">
               <h2 className="text-lg font-bold text-text-primary">Database & Mapping</h2>
-              {d.database.configured ? (
+              {isDemo ? (
+                <div className="flex items-center gap-4 p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                  <Database className="w-6 h-6 text-primary" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-text-primary">CRM Contacts — Pre-configured for demo</p>
+                    <p className="text-xs text-muted-text">7 columns mapped: Contact Name, Meeting Date, Account Number, Meeting Notes, Stage, Next Steps, Follow-up Date</p>
+                  </div>
+                </div>
+              ) : d.database.configured ? (
                 <div className="p-4 bg-bg-light rounded-xl border border-border">
                   <div className="flex items-center justify-between mb-4">
                     <div>
