@@ -52,6 +52,11 @@ export default function AnalyticsPage() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedRep, setSelectedRep] = useState("all");
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const [isDemo, setIsDemo] = useState(false);
+
+  useEffect(() => {
+    setIsDemo(document.cookie.includes("replog-demo-mode=true"));
+  }, []);
 
   const fetchData = async (from: string, to: string) => {
     setLoading(true);
@@ -136,8 +141,6 @@ export default function AnalyticsPage() {
   if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>;
   if (!data) return null;
 
-  const [isDemo, setIsDemo] = useState(false);
-  useEffect(() => { setIsDemo(document.cookie.includes("replog-demo-mode=true")); }, []);
   const isFree = data.plan === "FREE" && !isDemo;
 
   const stageKPIs: { colName: string; option: string; count: number; total: number; color: string }[] = [];
