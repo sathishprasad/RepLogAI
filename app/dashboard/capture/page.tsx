@@ -115,9 +115,13 @@ export default function CapturePage() {
 
       if (data.entryId) {
         router.push(`/dashboard/capture/review?id=${data.entryId}`);
+      } else {
+        alert(data.error || "Upload failed. Please try again.");
+        setState("idle");
       }
     } catch (err) {
       console.error("Upload failed:", err);
+      alert("Network error. Please try again.");
       setState("idle");
     }
   };

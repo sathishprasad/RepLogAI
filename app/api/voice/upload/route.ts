@@ -18,10 +18,12 @@ export async function POST(request: Request) {
 
     if (!audio) return NextResponse.json({ error: "No audio file" }, { status: 400 });
 
-    // Demo users limited to 5 recordings
+    // Demo users limited to 5 NEW recordings (exclude seeded entries)
     if (auth.isDemo) {
-      const demoEntryCount = await prisma.voiceEntry.count({ where: { userId: dbUser.id } });
-      if (demoEntryCount >= 5) {
+      const demoRecordingCount = await prisma.voiceEntry.count({
+        where: { userId: dbUser.id, audioStoragePath: { not: null } },
+      });
+      if (demoRecordingCount >= 5) {
         return NextResponse.json({
           error: "Demo limit reached (5 recordings). Sign up for a free account to continue!",
           code: "DEMO_LIMIT",
