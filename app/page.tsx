@@ -178,10 +178,7 @@ export default function LandingPage() {
                 <PipedriveLogo />
                 <span className="text-sm font-medium">Pipedrive</span>
               </div>
-              <div className="flex flex-col items-center gap-2 hover:text-white transition-colors cursor-pointer">
-                <SlackLogo />
-                <span className="text-sm font-medium">Slack</span>
-              </div>
+
               <div className="flex flex-col items-center gap-2 hover:text-white transition-colors cursor-pointer">
                 <NotionLogo />
                 <span className="text-sm font-medium">Notion</span>
