@@ -88,9 +88,9 @@ export async function getOrCreateDemoUser() {
 
     // Seed sample employees
     const sampleEmployees = [
-      { name: "Alice Johnson", employeeCode: "EMP001" },
-      { name: "Bob Martinez", employeeCode: "EMP002" },
-      { name: "Charlie Kim", employeeCode: "EMP003" },
+      { name: "Alice Johnson", employeeCode: "EMP001", telegramChatId: "demo_alice_001" },
+      { name: "Bob Martinez", employeeCode: "EMP002", telegramChatId: "demo_bob_002" },
+      { name: "Charlie Kim", employeeCode: "EMP003", telegramChatId: "demo_charlie_003" },
     ];
 
     for (const emp of sampleEmployees) {
@@ -99,6 +99,7 @@ export async function getOrCreateDemoUser() {
           adminId: demoUser.id,
           name: emp.name,
           employeeCode: emp.employeeCode,
+          telegramChatId: emp.telegramChatId,
         },
       });
     }
@@ -195,7 +196,7 @@ export async function getOrCreateDemoUser() {
             },
             meetingType: meetingType,
             status: "SYNCED",
-            source: i % 3 === 0 ? "TELEGRAM" : "WEB",
+            source: "TELEGRAM",
             createdAt,
           },
         })
