@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
-import { getOrCreateDemoUser, DEMO_COOKIE } from "@/lib/demo";
+import { getOrCreateDemoUser, DEMO_COOKIE, DEMO_USER_EMAIL } from "@/lib/demo";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
     const demoUser = await getOrCreateDemoUser();
+
+    // Clean up any real recordings from previous demo sessions
+    // (keep seeded entries which have no audioStoragePath)
+    await prisma.voiceEntry.deleteMany({
+      where: {
+        userId: demoUser.id,
+        audioStoragePath: { not: null },
+      },
+    });
 
     const response = NextResponse.json({
       success: true,
