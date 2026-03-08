@@ -1,15 +1,14 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/demo";
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await getAuthenticatedUser();
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const dbUser = await prisma.user.findUnique({
-    where: { email: user.email! },
+    where: { id: auth.user.id },
     include: {
       notionConnection: true,
       notionDatabaseConfig: true,
@@ -83,9 +82,8 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await getAuthenticatedUser();
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
   const { name, companyName, companyCode, onboardingComplete } = body;
@@ -97,7 +95,7 @@ export async function PATCH(request: Request) {
   if (onboardingComplete !== undefined) data.onboardingComplete = onboardingComplete;
 
   await prisma.user.update({
-    where: { email: user.email! },
+    where: { id: auth.user.id },
     data,
   });
 

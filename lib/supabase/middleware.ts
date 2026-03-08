@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+const DEMO_COOKIE = "replog-demo-session";
 
 export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,7 +38,10 @@ export async function updateSession(request: NextRequest) {
   const isOnboarding = request.nextUrl.pathname.startsWith("/onboarding");
   const isApi = request.nextUrl.pathname.startsWith("/api");
 
-  if (!user && (isDashboard || isOnboarding) && !isApi) {
+  // Allow demo users through via cookie
+  const hasDemoCookie = request.cookies.get(DEMO_COOKIE)?.value;
+
+  if (!user && !hasDemoCookie && (isDashboard || isOnboarding) && !isApi) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth";
     return NextResponse.redirect(url);

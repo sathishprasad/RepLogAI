@@ -135,6 +135,15 @@ model StripeCustomer {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model TelegramSession {
+  chatId    String   @id
+  state     Json
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime?
+
+  @@index([expiresAt])
+}
+
 model UsageEvent {
   id        String    @id @default(uuid())
   userId    String

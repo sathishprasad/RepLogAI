@@ -1,14 +1,13 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/demo";
 export const dynamic = 'force-dynamic';
 
 async function getAdmin() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const auth = await getAuthenticatedUser();
+  if (!auth) return null;
   return prisma.user.findUnique({
-    where: { email: user.email! },
+    where: { id: auth.user.id },
     include: { stripeCustomer: true },
   });
 }

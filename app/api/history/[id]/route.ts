@@ -1,18 +1,17 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/demo";
 export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await getAuthenticatedUser();
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const dbUser = await prisma.user.findUnique({
-    where: { email: user.email! },
+    where: { id: auth.user.id },
     include: { notionDatabaseConfig: true },
   });
   if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });

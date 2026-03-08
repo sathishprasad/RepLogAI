@@ -134,6 +134,19 @@ function ReviewPageInner() {
                 Open in Notion <ExternalLink className="w-4 h-4" />
               </a>
             )}
+            {typeof document !== "undefined" && document.cookie.includes("replog-demo-mode=true") && (
+              <div className="mt-4 p-4 bg-primary/5 border border-primary/20 rounded-2xl">
+                <p className="text-sm text-text-primary font-medium mb-2">🎉 See it live in our Notion CRM!</p>
+                <a
+                  href="https://dust-columnist-618.notion.site/311cdf46f1e5804a915bef2d5d0858c8?v=311cdf46f1e58085a9e0000c613d9843"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white rounded-full px-5 py-2.5 text-sm font-semibold transition-all shadow-[0_4px_14px_0_rgba(79,124,255,0.39)]"
+                >
+                  View Notion CRM <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+            )}
           </>
         ) : (
           <>

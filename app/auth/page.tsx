@@ -9,6 +9,7 @@ export default function AuthPage() {
   const router = useRouter();
   const supabase = createClient();
   const [authError, setAuthError] = useState<string | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -47,11 +48,31 @@ export default function AuthPage() {
     }
   };
 
+  const handleDemoSignIn = async () => {
+    setDemoLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch("/api/auth/demo", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        router.push("/dashboard");
+      } else {
+        setAuthError(data.error || "Demo login failed");
+      }
+    } catch (err: any) {
+      setAuthError(`Demo error: ${err.message}`);
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
   return (
     <div>
       <SignIn1
         onGithubSignIn={handleGithubSignIn}
+        onDemoSignIn={handleDemoSignIn}
         authError={authError}
+        demoLoading={demoLoading}
       />
     </div>
   );

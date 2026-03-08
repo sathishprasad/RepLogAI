@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendMessage, getFile, downloadFile } from "@/lib/telegram";
 import { processVoiceFromTelegram } from "@/lib/telegram-pipeline";
+import { checkUsageLimits, getMaxAudioSecs } from "@/lib/usage";
 export const dynamic = 'force-dynamic';
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
@@ -25,9 +26,39 @@ interface ConversationState {
   adminId?: string;
 }
 
-const pendingStates = new Map<number, ConversationState>();
+// Session helpers — persisted in Prisma instead of in-memory Map
+async function getSessionState(chatId: number): Promise<ConversationState | null> {
+  const session = await prisma.telegramSession.findUnique({
+    where: { chatId: String(chatId) },
+  });
+  if (!session) return null;
+  // Auto-expire after 10 minutes
+  if (session.expiresAt && session.expiresAt < new Date()) {
+    await prisma.telegramSession.delete({ where: { chatId: String(chatId) } }).catch(() => {});
+    return null;
+  }
+  return session.state as unknown as ConversationState;
+}
+
+async function setSessionState(chatId: number, state: ConversationState): Promise<void> {
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min TTL
+  await prisma.telegramSession.upsert({
+    where: { chatId: String(chatId) },
+    update: { state: state as any, expiresAt },
+    create: { chatId: String(chatId), state: state as any, expiresAt },
+  });
+}
+
+async function deleteSession(chatId: number): Promise<void> {
+  await prisma.telegramSession.delete({ where: { chatId: String(chatId) } }).catch(() => {});
+}
 
 export async function POST(request: Request) {
+  const secretToken = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
+  if (process.env.TELEGRAM_WEBHOOK_SECRET && secretToken !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+    return new NextResponse("Unauthorized", { status: 403 });
+  }
+
   try {
     const update: TelegramUpdate = await request.json();
     const message = update.message;
@@ -46,7 +77,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    const state = pendingStates.get(chatId);
+    const state = await getSessionState(chatId);
     if (state?.step === "awaiting_company_code") {
       await handleCompanyCode(chatId, text);
       return NextResponse.json({ ok: true });
@@ -69,7 +100,7 @@ export async function POST(request: Request) {
         chatId,
         "👋 Welcome to RepLog AI!\n\nPlease ask your manager for the bot link, or enter your company code:"
       );
-      pendingStates.set(chatId, { step: "awaiting_company_code" });
+      await setSessionState(chatId, { step: "awaiting_company_code" });
     }
 
     return NextResponse.json({ ok: true });
@@ -89,7 +120,7 @@ async function handleStart(chatId: number, text: string) {
       chatId,
       "👋 Welcome to RepLog AI!\n\nPlease enter your company code:"
     );
-    pendingStates.set(chatId, { step: "awaiting_company_code" });
+    await setSessionState(chatId, { step: "awaiting_company_code" });
     return;
   }
 
@@ -121,7 +152,7 @@ async function handleStart(chatId: number, text: string) {
     chatId,
     `👋 Welcome to RepLog AI!\nYou're joining <b>${admin.companyName || "your company"}</b>.\n\nPlease enter your Employee ID:`
   );
-  pendingStates.set(chatId, {
+  await setSessionState(chatId, {
     step: "awaiting_employee_id",
     companyCode: code,
     adminId: admin.id,
@@ -144,7 +175,7 @@ async function handleCompanyCode(chatId: number, code: string) {
     chatId,
     `✅ You're joining <b>${admin.companyName || "your company"}</b>!\n\nPlease enter your Employee ID:`
   );
-  pendingStates.set(chatId, {
+  await setSessionState(chatId, {
     step: "awaiting_employee_id",
     companyCode: code,
     adminId: admin.id,
@@ -200,7 +231,7 @@ async function linkEmployee(
     });
   }
 
-  pendingStates.delete(chatId);
+  await deleteSession(chatId);
 
   await sendMessage(
     TOKEN,
@@ -216,7 +247,7 @@ async function handleVoice(
 ) {
   const employee = await prisma.employee.findUnique({
     where: { telegramChatId: String(chatId) },
-    include: { admin: true },
+    include: { admin: { include: { stripeCustomer: true } } },
   });
 
   if (!employee) {
@@ -225,6 +256,21 @@ async function handleVoice(
       chatId,
       "❌ You're not registered yet. Please ask your manager for the bot link to get started."
     );
+    return;
+  }
+
+  // Check usage limits before processing
+  const usage = await checkUsageLimits(employee.adminId);
+  if (!usage.allowed) {
+    await sendMessage(TOKEN, chatId, `❌ ${usage.reason}`);
+    return;
+  }
+
+  // Check audio duration
+  const plan = employee.admin.stripeCustomer?.plan || "FREE";
+  const maxSecs = getMaxAudioSecs(plan);
+  if (voice.duration > maxSecs) {
+    await sendMessage(TOKEN, chatId, `⚠️ This audio is too long (${voice.duration}s). Your current plan limit is ${maxSecs}s. Please upgrade to send longer notes.`);
     return;
   }
 

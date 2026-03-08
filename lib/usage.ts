@@ -6,16 +6,7 @@ export async function trackUsage(userId: string, type: "ENTRIES_CREATED" | "AUDI
   });
 }
 
-function getPlanLimits(plan: string) {
-  switch (plan) {
-    case "SCALE":
-      return { maxEntries: -1, maxAudioSecs: 300, maxReps: 999, updatesPerRepPerDay: -1 };
-    case "PRO":
-      return { maxEntries: -1, maxAudioSecs: 300, maxReps: 10, updatesPerRepPerDay: -1 };
-    default:
-      return { maxEntries: -1, maxAudioSecs: 60, maxReps: 3, updatesPerRepPerDay: 10 };
-  }
-}
+import { getPlanLimits } from "./plans";
 
 export async function checkUsageLimits(userId: string): Promise<{ allowed: boolean; reason?: string }> {
   const user = await prisma.user.findUnique({

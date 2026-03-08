@@ -1,15 +1,15 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { checkUsageLimits, trackUsage } from "@/lib/usage";
+import { getAuthenticatedUser } from "@/lib/demo";
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await getAuthenticatedUser();
+    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const dbUser = auth.user;
 
     const formData = await request.formData();
     const audio = formData.get("audio") as File;
@@ -18,9 +18,15 @@ export async function POST(request: Request) {
 
     if (!audio) return NextResponse.json({ error: "No audio file" }, { status: 400 });
 
-    const dbUser = await prisma.user.findUnique({ where: { email: user.email! } });
-    if (!dbUser) {
-      return NextResponse.json({ error: "User not found in database" }, { status: 404 });
+    // Demo users limited to 5 recordings
+    if (auth.isDemo) {
+      const demoEntryCount = await prisma.voiceEntry.count({ where: { userId: dbUser.id } });
+      if (demoEntryCount >= 5) {
+        return NextResponse.json({
+          error: "Demo limit reached (5 recordings). Sign up for a free account to continue!",
+          code: "DEMO_LIMIT",
+        }, { status: 429 });
+      }
     }
 
     const usageCheck = await checkUsageLimits(dbUser.id);
