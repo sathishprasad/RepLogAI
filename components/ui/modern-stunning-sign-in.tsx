@@ -30,12 +30,12 @@ const SignIn1 = ({ onGithubSignIn, onDemoSignIn, loading, demoLoading, authError
       />
 
       <div className="relative z-10 w-full max-w-sm rounded-3xl bg-gradient-to-br from-white/[0.07] to-[#0B0F17]/80 backdrop-blur-sm shadow-2xl p-8 flex flex-col items-center border border-white/[0.08]">
-        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-[#4F7CFF]/20 mb-4 shadow-[0_0_25px_rgba(79,124,255,0.3)]">
+        <Link href="/" className="flex items-center justify-center w-12 h-12 rounded-full bg-[#4F7CFF]/20 mb-4 shadow-[0_0_25px_rgba(79,124,255,0.3)] hover:bg-[#4F7CFF]/30 transition-colors cursor-pointer">
           <Mic className="w-6 h-6 text-[#4F7CFF]" />
-        </div>
+        </Link>
 
         <h2 className="text-2xl font-bold text-white mb-1 text-center tracking-tight">
-          Welcome to RepLog AI
+          <Link href="/" className="hover:text-[#4F7CFF] transition-colors">Welcome to RepLog AI</Link>
         </h2>
         <p className="text-sm text-gray-400 mb-8 text-center">
           Sign in with your GitHub account to continue
