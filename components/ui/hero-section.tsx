@@ -106,8 +106,8 @@ export function HeroSection() {
               <a href="/auth">Start Free — 2 Minute Setup</a>
             </Button>
             <Button asChild size="lg" variant="outline" className="w-full sm:w-auto h-14 px-10 rounded-full font-semibold tracking-wide text-base border-white/20 bg-transparent hover:bg-white/10 hover:text-white hover:scale-105 transition-all">
-              <a href="#demo">
-                Watch 30s Demo <ArrowRight className="ml-2 w-5 h-5" />
+              <a href="/auth">
+                Try Free Demo <ArrowRight className="ml-2 w-5 h-5" />
               </a>
             </Button>
           </div>
